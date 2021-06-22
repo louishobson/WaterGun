@@ -76,6 +76,12 @@
 
 namespace watergun
 {
+    /** struct vector3d : XnVector3D
+     * 
+     * Wrapper for XnVector3D, but with arithmetic, component-wise operaions defined.
+     */
+    struct vector3d;
+
     /** class tracker
      * 
      * Creates a OpenNI/NITE context, and exposes human-tracking capabilities.
@@ -85,7 +91,64 @@ namespace watergun
 
 
 
+/* VECTOR3D DEFINITION */
+
+
+
+/** struct vector3d : XnVector3D
+ * 
+ * Wrapper for XnVector3D, but with overloaded operations.
+ */
+struct watergun::vector3d : public XnVector3D
+{
+    /** @name default construction
+     * 
+     * @brief Initialize all components to 0.
+     */
+    vector3d () : XnVector3D { 0., 0., 0. } {}
+
+    /** @name single components constructor
+     * 
+     * @brief Initialize all components to the same value.
+     * @param v: The value to initialize the components to.
+     */
+    explicit vector3d ( XnFloat v ) : XnVector3D { v, v, v } {}
+
+    /** @name three component constructor
+     * 
+     * @brief Initialize all components to separate values.
+     * @param x: X value.
+     * @param y: Y value.
+     * @param z: Z value.
+     */
+    vector3d ( XnFloat x, XnFloat y, XnFloat z ) : XnVector3D { x, y, z } {}
+
+
+    
+    /* Default comparison operators */
+    bool operator== ( const vector3d& other ) const { return X == other.X && Y == other.Y && Z == other.Z; }
+    bool operator!= ( const vector3d& other ) const { return X != other.X || Y != other.Y || Z != other.Z; }
+
+    /* Simple arithmetic operations */
+    vector3d operator+ ( const vector3d& other ) const { return vector3d { X + other.X, Y + other.Y, Z + other.Z }; }
+    vector3d operator- ( const vector3d& other ) const { return vector3d { X - other.X, Y - other.Y, Z - other.Z }; }
+    vector3d operator* ( const vector3d& other ) const { return vector3d { X * other.X, Y * other.Y, Z * other.Z }; }
+    vector3d operator/ ( const vector3d& other ) const { return vector3d { X / other.X, Y / other.Y, Z / other.Z }; }
+    vector3d& operator+= ( const vector3d& other ) { return * this = * this + other; }
+    vector3d& operator-= ( const vector3d& other ) { return * this = * this - other; }
+    vector3d& operator*= ( const vector3d& other ) { return * this = * this * other; }
+    vector3d& operator/= ( const vector3d& other ) { return * this = * this / other; }
+    vector3d operator* ( XnFloat scalar ) const { return * this * vector3d { scalar }; }
+    vector3d operator/ ( XnFloat scalar ) const { return * this / vector3d { scalar }; }
+    vector3d& operator*= ( XnFloat scalar ) { return * this = * this * scalar; }
+    vector3d& operator/= ( XnFloat scalar ) { return * this = * this / scalar; }
+};
+
+
+
 /* TRACKER DEFINITION */
+
+
 
 /** class tracker
  * 
@@ -108,16 +171,16 @@ public:
         std::chrono::system_clock::time_point timestamp;
 
         /* The user's centre of mass in cartesian coordinates */
-        XnVector3D com;
+        vector3d com;
 
         /* The user's centre of mass in mixed polar coordinates. 
          * X is an angle from the centre of the camera in radians, Y is the perpandicular height from the camera's center, Z is the distance from the camera. 
          */
-        XnVector3D polar_com;
+        vector3d polar_com;
 
         /* Same as the two above, but rate of change */
-        XnVector3D com_rate = { 0.0, 0.0, 0.0 };
-        XnVector3D polar_com_rate = { 0.0, 0.0, 0.0 };
+        vector3d com_rate = { 0., 0., 0. };
+        vector3d polar_com_rate = { 0., 0., 0. };
     };
 
 
@@ -125,10 +188,11 @@ public:
     /** @name constructor
      * 
      * @brief Sets up the context and configures OpenNI/NITE for human recognition.
+     * @param camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
      * @param config: Path to a configuration file to use. If unspecified, the default local and global paths will be used.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    tracker ( std::string config_path = "" );
+    explicit tracker ( vector3d camera_offset = vector3d {}, std::string config_path = "" );
 
     /** @name destructor
      * 
@@ -164,6 +228,11 @@ private:
     
     /* OpenNI user generator */
     xn::UserGenerator user_generator;
+
+
+
+    /* The offset of the camera from the origin */
+    vector3d origin_offset;
 
 
 
@@ -217,14 +286,14 @@ private:
 
     /** @name  rate_of_change
      * 
-     * @brief  Calculate the rate between the change in a value, and the duration between them.
+     * @brief  Calculate the rate of change, given value and time deltas.
      * @param  delta_v: The change in value.
      * @param  delta_t: The change in time.
      * @return Rate of change as a double.
      */
     template<class T, class Rep, std::intmax_t Num, std::intmax_t Den>
-    static double rate_of_change ( T delta_v, std::chrono::duration<Rep, std::ratio<Num, Den>> delta_t ) 
-        { return static_cast<double> ( delta_v ) / ( static_cast<double> ( delta_t.count () ) * static_cast<double> ( Num ) / static_cast<double> ( Den ) ); }
+    static auto rate_of_change ( T delta_v, std::chrono::duration<Rep, std::ratio<Num, Den>> delta_t ) 
+        { return delta_v / ( static_cast<double> ( delta_t.count () ) * static_cast<double> ( Num ) / static_cast<double> ( Den ) ); }
 
 };
 

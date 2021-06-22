@@ -24,10 +24,12 @@
 /** @name constructor
  * 
  * @brief Sets up the context and configures OpenNI/NITE for human recognition.
+ * @param camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
  * @param config: Path to a configuration file to use. If unspecified, the default local and global paths will be used.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
-watergun::tracker::tracker ( std::string config_path )
+watergun::tracker::tracker ( const vector3d camera_offset, std::string config_path )
+    : origin_offset { camera_offset }
 {
     /* Return value and error storage */
     XnStatus status; xn::EnumerationErrors errors;
@@ -119,11 +121,9 @@ void watergun::tracker::tracker_thread_callback ()
             /* Create the new user */
             tracked_user user { user_ids [ i ], timestamp };
 
-            /* Get the COM for this user */
+            /* Get the COM for this user. If the Z-coord is 0 (the user is lost), ignore this user. Else change to m/s and add the origin offset. */
             user_generator.GetCoM ( user_ids [ i ], user.com );
-
-            /* If the COM Z coord is 0 (the user is lost), ignore this user */
-            if ( user.com.Z == 0.0 ) continue;
+            if ( user.com.Z == 0. ) continue; user.com = user.com / 1000. + origin_offset;
 
             /* Calculate the polar COM */
             user.polar_com = { std::atan ( user.com.X / user.com.Z ), user.com.Y, std::sqrt ( user.com.X * user.com.X + user.com.Z * user.com.Z ) };
@@ -134,11 +134,8 @@ void watergun::tracker::tracker_thread_callback ()
             /* If the user was tracked in the last frame, update their rates of change */
             if ( it != tracked_users.end () )
             {
-                user.com_rate.X = rate_of_change ( user.com.X - it->com.X, timestamp - it->timestamp );
-                user.com_rate.Z = rate_of_change ( user.com.Z - it->com.Z, timestamp - it->timestamp );
-                user.polar_com_rate.X = rate_of_change ( user.polar_com.X - it->polar_com.X, timestamp - it->timestamp );
-                user.polar_com_rate.Z = rate_of_change ( user.polar_com.Z - it->polar_com.Z, timestamp - it->timestamp );
-                user.com_rate.Y = user.polar_com_rate.Y = rate_of_change ( user.com.Y - it->com.Y, timestamp - it->timestamp );
+                user.com_rate = rate_of_change ( user.com - it->com, timestamp - it->timestamp );
+                user.polar_com_rate = rate_of_change ( user.polar_com - it->polar_com, timestamp - it->timestamp );
             }
 
             /* Add the new tracked user */
@@ -197,7 +194,7 @@ std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_tracked_use
  * @param  status: The status returned from an OpenNI call.
  * @param  error_msg: The error message to set the exception to contain.
  */
-void watergun::tracker::check_status ( XnStatus status, const std::string& error_msg )
+void watergun::tracker::check_status ( const XnStatus status, const std::string& error_msg )
 {
     /* If status != XN_STATUS_OK, throw an exception with error_msg as the message */
     if ( status != XN_STATUS_OK ) throw watergun_exception { error_msg + ": " + xnGetStatusString ( status ) };
