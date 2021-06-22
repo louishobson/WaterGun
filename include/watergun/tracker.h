@@ -41,8 +41,8 @@
  * The relative path to the local configuration file.
  * This is the first choice for configuration files.
  */
-#ifndef XML_LOCAL_CONFIG_PATH
-    #define XML_LOCAL_CONFIG_PATH "./config/config.xml"
+#ifndef WATERGUN_XML_LOCAL_CONFIG_PATH
+    #define WATERGUN_XML_LOCAL_CONFIG_PATH "./config/config.xml"
 #endif
 
 /** XML global configuration file
@@ -50,16 +50,24 @@
  * The full path to the global configuration file.
  * This is second choice if the local file cannot be found.
  */
-#ifndef XML_GLOBAL_CONFIG_PATH
-    #define XML_GLOBAL_CONFIG_PATH "/etc/watergun/config.xml"
+#ifndef WATERGUN_XML_GLOBAL_CONFIG_PATH
+    #define WATERGUN_XML_GLOBAL_CONFIG_PATH "/etc/watergun/config.xml"
+#endif
+
+/** Maximum error message length
+ * 
+ * The maximum length of an error message from an EnumerationErrors class.
+ */
+#ifndef WATERGUN_MAX_ERROR_LENGTH
+    #define WATERGUN_MAX_ERROR_LENGTH 1024
 #endif
 
 /** Maximum number of users
  * 
  * The maximum number of users the tracker can track.
  */
-#ifndef MAX_TRACKABLE_USERS
-    #define MAX_TRACKABLE_USERS 6
+#ifndef WATERGUN_MAX_TRACKABLE_USERS
+    #define WATERGUN_MAX_TRACKABLE_USERS 6
 #endif
 
 
@@ -199,7 +207,7 @@ private:
 
     /** @name  check_status
      * 
-     * @brief  Takes a returned status, and checks that is is XN_STATUS_OK. If not, throws with the supplied reason and status description in brackets.
+     * @brief  Takes a returned status, and checks that is is XN_STATUS_OK. If not, throws with the supplied reason and status description after a colon.
      * @param  status: The status returned from an OpenNI call.
      * @param  error_msg: The error message to set the exception to contain.
      */
