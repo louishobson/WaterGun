@@ -110,7 +110,7 @@ public:
         /* The user's centre of mass in cartesian coordinates */
         XnVector3D com;
 
-        /* The user's centre of mass in mixed polar coordinates. Y and Z are the same, but X is an angle from the centre of the camera in radians. */
+        /* The user's centre of mass in mixed polar coordinates. X is an angle from the centre of the camera in radians, Y is the same as previously, X is the distance from the camera. */
         XnVector3D polar_com;
 
         /* Same as the two above, but rate of change */

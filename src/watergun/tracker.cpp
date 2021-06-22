@@ -126,7 +126,7 @@ void watergun::tracker::tracker_thread_callback ()
             if ( user.com.Z == 0.0 ) continue;
 
             /* Calculate the polar COM */
-            user.polar_com = { std::atan ( user.com.X / user.com.Z ), user.com.Y, user.com.Z };
+            user.polar_com = { std::atan ( user.com.X / user.com.Z ), user.com.Y, std::sqrt ( user.com.X * user.com.X + user.com.Z * user.com.Z ) };
 
             /* See if a user of the same ID can be found in the last frame's tracked users */
             auto it = std::find_if ( tracked_users.begin (), tracked_users.end (), [ id = user_ids [ i ] ] ( const tracked_user& u ) { return u.id == id; } );
@@ -135,9 +135,10 @@ void watergun::tracker::tracker_thread_callback ()
             if ( it != tracked_users.end () )
             {
                 user.com_rate.X = rate_of_change ( user.com.X - it->com.X, timestamp - it->timestamp );
+                user.com_rate.Z = rate_of_change ( user.com.Z - it->com.Z, timestamp - it->timestamp );
                 user.polar_com_rate.X = rate_of_change ( user.polar_com.X - it->polar_com.X, timestamp - it->timestamp );
+                user.polar_com_rate.Z = rate_of_change ( user.polar_com.Z - it->polar_com.Z, timestamp - it->timestamp );
                 user.com_rate.Y = user.polar_com_rate.Y = rate_of_change ( user.com.Y - it->com.Y, timestamp - it->timestamp );
-                user.com_rate.Z = user.polar_com_rate.Z = rate_of_change ( user.com.Z - it->com.Z, timestamp - it->timestamp );
             }
 
             /* Add the new tracked user */
@@ -199,5 +200,5 @@ std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_tracked_use
 void watergun::tracker::check_status ( XnStatus status, const std::string& error_msg )
 {
     /* If status != XN_STATUS_OK, throw an exception with error_msg as the message */
-    if ( status != XN_STATUS_OK ) throw watergun_exception { error_msg + ":" + xnGetStatusString ( status ) };
+    if ( status != XN_STATUS_OK ) throw watergun_exception { error_msg + ": " + xnGetStatusString ( status ) };
 }
