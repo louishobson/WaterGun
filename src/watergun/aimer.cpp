@@ -33,10 +33,10 @@ std::pair<XnFloat, XnFloat> watergun::aimer::calculate_aim ( const tracked_user&
     auto roots = solve_quartic
     (
         ( 24.059025 ),
-        ( 9.81 * user.polar_com_rate.Y ),
-        ( 9.81 * user.polar_com.Y ) + ( user.polar_com_rate.Y * user.polar_com_rate.Y ) + ( user.polar_com_rate.Z * user.polar_com_rate.Z ) - ( water_rate * water_rate ),
-        ( 2. * user.polar_com.Y * user.polar_com_rate.Y ) + ( 2. * user.polar_com.Z * user.polar_com_rate.Z ),
-        ( user.polar_com.Z * user.polar_com.Z ) + ( user.polar_com.Y * user.polar_com.Y )
+        ( 9.81 * user.com_rate.Y ),
+        ( 9.81 * user.com.Y ) + ( user.com_rate.Y * user.com_rate.Y ) + ( user.com_rate.Z * user.com_rate.Z ) - ( water_rate * water_rate ),
+        ( 2. * user.com.Y * user.com_rate.Y ) + ( 2. * user.com.Z * user.com_rate.Z ),
+        ( user.com.Z * user.com.Z ) + ( user.com.Y * user.com.Y )
     );
 
     /* Look for two real positive times */
@@ -47,7 +47,7 @@ std::pair<XnFloat, XnFloat> watergun::aimer::calculate_aim ( const tracked_user&
     if ( time == INFINITY ) return { NAN, NAN };
 
     /* Else produce the angles */
-    return { user.polar_com.X + user.polar_com_rate.X * time, std::asin ( ( user.polar_com.Y + user.polar_com_rate.Y * time + 4.905 * time * time ) / ( water_rate * time ) ) };
+    return { user.com.X + user.com_rate.X * time, std::asin ( ( user.com.Y + user.com_rate.Y * time + 4.905 * time * time ) / ( water_rate * time ) ) };
 }
 
 
