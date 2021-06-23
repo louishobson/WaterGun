@@ -63,14 +63,15 @@ watergun::tracker::tracker ( const vector3d camera_offset, std::string config_pa
     /* Handle any other case where the status is not okay */
     else check_status ( status, "Failed to init context" );
 
-    /* Set up user generator */
-    check_status ( context.FindExistingNode ( XN_NODE_TYPE_USER, user_generator ), "Failed to init user generator"  );
+    /* Set up depth and user generators */
+    check_status ( context.FindExistingNode ( XN_NODE_TYPE_DEPTH, depth_generator ), "Failed to init depth generator" );
+    check_status ( context.FindExistingNode ( XN_NODE_TYPE_USER,  user_generator  ), "Failed to init user generator"  );
 
     /* Start generation */
     context.StartGeneratingAll ();
 
     /* Start the tracking thread */
-    tracker_thread = std::thread { &tracker::tracker_thread_callback, this };
+    tracker_thread = std::thread { &tracker::tracker_thread_function, this };
 }
 
 
@@ -84,26 +85,33 @@ watergun::tracker::~tracker ()
     /* If the tracker thread is running, stop and join it */
     if ( tracker_thread.joinable () ) { end_tracker_thread = true; tracker_thread.join (); }
 
+    /* Stop generation */
+    context.StopGeneratingAll ();
+
     /* Release contexts and handles */
     script_node.Release ();
+    depth_generator.Release ();
     user_generator.Release ();
     context.Release ();
 }
 
 
 
-/** @name  tracker_thread_callback
+/** @name  tracker_thread_function
  * 
  * @brief  Function run by tracker_thread. Runs in a loop, updating tracked_users as new frames come in.
  * @return Nothing.
  */
-void watergun::tracker::tracker_thread_callback ()
+void watergun::tracker::tracker_thread_function ()
 {
-    /* Loop while updating OpenNI buffers */
-    while ( context.WaitOneUpdateAll ( user_generator ) == XN_STATUS_OK && !end_tracker_thread )
+    /* Loop while updating depth buffers */
+    while ( depth_generator.WaitAndUpdateData () == XN_STATUS_OK && !end_tracker_thread )
     {
-        /* Get the timestamp */
+        /* Get the timestamp that the depth data became availible*/
         auto timestamp = std::chrono::system_clock::now ();
+
+        /* Wait for the user data to become availible */
+        user_generator.WaitAndUpdateData ();
 
         /* Get the number of users availible and populate an array with those users' IDs */
         XnUInt16 num_users = WATERGUN_MAX_TRACKABLE_USERS; XnUserID user_ids [ WATERGUN_MAX_TRACKABLE_USERS ];
@@ -112,45 +120,32 @@ void watergun::tracker::tracker_thread_callback ()
         /* Create a new tracked users array */
         std::vector<tracked_user> new_tracked_users;
 
-        /* Lock the mutex */
+        /* Lock the mutex and loop through the detected users */
         std::unique_lock lock { tracked_users_mx };
-
-        /* Loop through the users */
         for ( XnUInt16 i = 0; i < num_users; ++i )
         {
             /* Create the new user */
             tracked_user user { user_ids [ i ], timestamp };
 
-            /* Get the COM for this user. If the Z-coord is 0 (the user is lost), ignore this user. Else change to m/s and add the origin offset. */
+            /* Get the COM for this user in cartesian coordinates. If the Z-coord is 0 (the user is lost), ignore this user. Else change to m/s and add the origin offset. */
             user_generator.GetCoM ( user_ids [ i ], user.com );
             if ( user.com.Z == 0. ) continue; user.com = user.com / 1000. + origin_offset;
 
-            /* Calculate the polar COM */
-            user.polar_com = { std::atan ( user.com.X / user.com.Z ), user.com.Y, std::sqrt ( user.com.X * user.com.X + user.com.Z * user.com.Z ) };
+            /* Replace the COM with polar coordinates */
+            user.com = { std::atan ( user.com.X / user.com.Z ), user.com.Y, std::sqrt ( user.com.X * user.com.X + user.com.Z * user.com.Z ) };
 
-            /* See if a user of the same ID can be found in the last frame's tracked users */
+            /* See if a user of the same ID can be found in the last frame's tracked users. If it can, set their rate of change. */
             auto it = std::find_if ( tracked_users.begin (), tracked_users.end (), [ id = user_ids [ i ] ] ( const tracked_user& u ) { return u.id == id; } );
+            if ( it != tracked_users.end () ) user.com_rate = rate_of_change ( user.com - it->com, user.timestamp - it->timestamp );
 
-            /* If the user was tracked in the last frame, update their rates of change */
-            if ( it != tracked_users.end () )
-            {
-                user.com_rate = rate_of_change ( user.com - it->com, timestamp - it->timestamp );
-                user.polar_com_rate = rate_of_change ( user.polar_com - it->polar_com, timestamp - it->timestamp );
-            }
-
-            /* Add the new tracked user */
+            /* Add the tracked user to the new array */
             new_tracked_users.push_back ( user );
         }
 
-        /* Move over the new tracked users */
+        /* Update the tracked users with the new array and notify the condition variable */
         tracked_users = std::move ( new_tracked_users );
-
-        /* Notify the condition variable */
         tracked_users_cv.notify_all ();
     }
-
-    /* Notify the condition variable one last time */
-    tracked_users_cv.notify_all ();
 }
 
 

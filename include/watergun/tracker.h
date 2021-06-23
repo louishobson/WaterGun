@@ -170,17 +170,13 @@ public:
         /* The point in time that the position was taken */
         std::chrono::system_clock::time_point timestamp;
 
-        /* The user's centre of mass in cartesian coordinates */
-        vector3d com;
-
-        /* The user's centre of mass in mixed polar coordinates. 
+        /* The user's centre of mass in mixed polar coordinates.
          * X is an angle from the centre of the camera in radians, Y is the perpandicular height from the camera's center, Z is the distance from the camera. 
          */
-        vector3d polar_com;
+        vector3d com;
 
-        /* Same as the two above, but rate of change */
+        /* The rate of change of the COM */
         vector3d com_rate = { 0., 0., 0. };
-        vector3d polar_com_rate = { 0., 0., 0. };
     };
 
 
@@ -226,8 +222,9 @@ private:
     /* OpenNI script node */
     xn::ScriptNode script_node;
     
-    /* OpenNI user generator */
-    xn::UserGenerator user_generator;
+    /* OpenNI depth and user generators */
+    xn::DepthGenerator depth_generator;
+    xn::UserGenerator  user_generator;
 
 
 
@@ -251,28 +248,12 @@ private:
 
 
 
-    /** @name  tracker_thread_callback
+    /** @name  tracker_thread_function
      * 
      * @brief  Function run by tracker_thread. Runs in a loop, updating tracked_users as new frames come in.
      * @return Nothing.
      */
-    void tracker_thread_callback ();
-
-
-
-    /** @name  wait_update
-     * 
-     * @brief  Waits for new data to become availible, then calls the supplied callback based on the new data.
-     * @return The status returned by the internal call.
-     */
-    XnStatus wait_update () { return context.WaitOneUpdateAll ( user_generator ); };
-
-    /** @name  instant_update
-     * 
-     * @brief  Calls the supplied callback if new data is availible, else does nothing.
-     * @return The status returned by the internal call.
-     */
-    XnStatus instant_update () { return context.WaitNoneUpdateAll (); }
+    void tracker_thread_function ();
 
 
 
