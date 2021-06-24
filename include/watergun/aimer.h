@@ -21,6 +21,7 @@
 /* INCLUDES */
 #include <array>
 #include <complex>
+#include <utility>
 #include <watergun/tracker.h>
 
 
@@ -69,6 +70,33 @@ public:
 
 
 
+    /** @name  get_target
+     * 
+     * @brief  Immediately get the next target to hit, based off of the data currently availible.
+     * @return The chosen tracked user. The timestamp will have time_since_epoch () == 0, if no user is found.
+     */
+    tracked_user get_target () { return choose_target ( get_tracked_users () ); }
+
+    /** @name  wait_target
+     * 
+     * @brief  Wait for the data on tracked users to update, then choose the next target to hit.
+     * @return The chosen tracked user. The timestamp will have time_since_epoch () == 0, if no user is found.
+     */
+    tracked_user wait_target () { return choose_target ( wait_tracked_users () ); }
+
+
+
+    /** @name  calculate_aim
+     * 
+     * @brief  From a tracked user, find the yaw and pitch the watergun must shoot to hit the user for the given water velocity.
+     * @param  user: The user to aim at.
+     * @param  timestamp: The time at which to hit the user. Defaults to now, which will give the aiming for the user's current position (based on the tracked user's timestamp).
+     * @return A pair, containing the yaw and pitch in radians, or NaN for both if it is not possible to hit the user.
+     */
+    std::pair<XnFloat, XnFloat> calculate_aim ( tracked_user user, clock::time_point timestamp = clock::now () ) const;
+
+
+
 private:
 
     /* The water velocity */
@@ -76,25 +104,23 @@ private:
 
 
 
-public:
-
-    /** @name  calculate_aim
+    /** @name  choose_target
      * 
-     * @brief  From a tracked user, find the yaw and pitch the watergun must shoot to hit the user for the given water velocity.
-     * @param  user: The user to aim at.
-     * @return A pair, containing the yaw and pitch in radians, or NaN for both if it is not possible to hit the user.
+     * @brief  Choose a user to aim at from the given list.
+     * @param  users: The users to aim at.
+     * @return The tracked user the gun has chosen to aim for. The tracked user will be updated to represent the user's projected current position.
      */
-    std::pair<XnFloat, XnFloat> calculate_aim ( const tracked_user& user ) const;
+    tracked_user choose_target ( const std::vector<tracked_user>& users );
 
     /** @name  solve_quartic
      * 
      * @brief  Solves a quartic equation with given coeficients in decreasing power order.
-     *         Special thanks to sidneycadot (https://github.com/sidneycadot) for the function definition.
+     *         Special thanks to Sidney Cadot (https://github.com/sidneycadot) for the function implementation.
      * @param  c0: The first coeficient (x^4)...
      * @param  c4: The last coeficient (x^0).
      * @return Array of four (possibly complex) solutions.
      */
-    static std::array<std::complex<double>, 4> solve_quartic ( const std::complex<double> c0, const std::complex<double> c1, const std::complex<double> c2, const std::complex<double> c3, const std::complex<double> c4 );
+    static std::array<std::complex<double>, 4> solve_quartic ( const std::complex<double>& c0, const std::complex<double>& c1, const std::complex<double>& c2, const std::complex<double>& c3, const std::complex<double>& c4 );
 
 };
 
