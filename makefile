@@ -4,14 +4,14 @@
 
 # g++ setup
 CPP=g++
-CPPFLAGS=-std=c++20 -Dlinux -Iinclude -L. -I/usr/include/ni -I/usr/include/nite -O2 -pthread -latomic -lOpenNI -march=native -flto=auto -pedantic
+CPPFLAGS=-std=c++20 -Dlinux -Iinclude -L. -I/usr/include/ni -I/usr/include/nite -O0 -g -pthread -latomic -lOpenNI -march=native -flto=auto -pedantic
 
 # ar setup
 AR=ar
 ARFLAGS=-rc
 
 # object files
-OBJ=src/watergun/tracker.o
+OBJ=src/watergun/tracker.o src/watergun/aimer.o
 
 
 
