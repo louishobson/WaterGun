@@ -24,12 +24,12 @@
 /** @name constructor
  * 
  * @brief Sets up the context and configures OpenNI/NITE for human recognition.
- * @param camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
+ * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
  * @param config: Path to a configuration file to use. If unspecified, the default local and global paths will be used.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
-watergun::tracker::tracker ( const vector3d camera_offset, std::string config_path )
-    : origin_offset { camera_offset }
+watergun::tracker::tracker ( const vector3d _camera_offset, std::string config_path )
+    : camera_offset { _camera_offset }
 {
     /* Return value and error storage */
     XnStatus status; xn::EnumerationErrors errors;
@@ -193,9 +193,9 @@ void watergun::tracker::tracker_thread_function ()
             /* Create the new user */
             tracked_user user { user_ids [ i ], timestamp };
 
-            /* Get the COM for this user in cartesian coordinates. If the Z-coord is 0 (the user is lost), ignore this user. Else change to m/s and add the origin offset. */
+            /* Get the COM for this user in cartesian coordinates. If the Z-coord is 0 (the user is lost), ignore this user. Else change to m/s and add the camera offset. */
             user_generator.GetCoM ( user_ids [ i ], user.com );
-            if ( user.com.Z == 0. ) continue; user.com = user.com / 1000. + origin_offset;
+            if ( user.com.Z == 0. ) continue; user.com = user.com / 1000. + camera_offset;
 
             /* Replace the COM with polar coordinates */
             user.com = { std::atan ( user.com.X / user.com.Z ), user.com.Y, std::sqrt ( user.com.X * user.com.X + user.com.Z * user.com.Z ) };

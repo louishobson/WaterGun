@@ -173,8 +173,8 @@ public:
         /* The point in time that the position was taken */
         clock::time_point timestamp;
 
-        /* The user's centre of mass in mixed polar coordinates.
-         * X is an angle from the centre of the camera in radians, Y is the perpandicular height from the camera's center, Z is the distance from the camera. 
+        /* The user's center of mass in mixed polar coordinates.
+         * X is an angle from the center of the camera in radians, Y is the perpandicular height from the camera's center, Z is the distance from the camera. 
          */
         vector3d com;
 
@@ -187,11 +187,11 @@ public:
     /** @name constructor
      * 
      * @brief Sets up the context and configures OpenNI/NITE for human recognition.
-     * @param camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
-     * @param config: Path to a configuration file to use. If unspecified, the default local and global paths will be used.
+     * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
+     * @param config_path: Path to a configuration file to use. If unspecified, the default local and global paths will be used.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    explicit tracker ( vector3d camera_offset = vector3d {}, std::string config_path = "" );
+    explicit tracker ( vector3d _camera_offset = vector3d {}, std::string config_path = "" );
 
     /** @name destructor
      * 
@@ -235,6 +235,28 @@ protected:
     XnFloat camera_max_depth;
 
 
+    /** @name  duration_to_seconds
+     * 
+     * @brief  Get a duration in seconds as a double.
+     * @param  dur: The duration to cast.
+     * @return The duration in seconds.
+     */
+    template<class Rep, class Ratio>
+    static std::chrono::duration<double> duration_to_seconds ( std::chrono::duration<Rep, Ratio> dur )
+        { return std::chrono::duration_cast<std::chrono::duration<double>> ( dur ); }
+
+    /** @name  rate_of_change
+     * 
+     * @brief  Calculate the rate of change, given value and time deltas.
+     * @param  delta_v: The change in value.
+     * @param  delta_t: The change in time.
+     * @return Rate of change as a double.
+     */
+    template<class T, class Rep, class Ratio>
+    static T rate_of_change ( T delta_v, std::chrono::duration<Rep, Ratio> delta_t ) 
+        { return delta_v / duration_to_seconds ( delta_t ).count (); }
+
+
 
 private:
 
@@ -251,7 +273,7 @@ private:
 
 
     /* The offset of the camera from the origin */
-    vector3d origin_offset;
+    vector3d camera_offset;
 
 
 
@@ -286,17 +308,6 @@ private:
      * @param  error_msg: The error message to set the exception to contain.
      */
     static void check_status ( XnStatus status, const std::string& error_msg );
-
-    /** @name  rate_of_change
-     * 
-     * @brief  Calculate the rate of change, given value and time deltas.
-     * @param  delta_v: The change in value.
-     * @param  delta_t: The change in time.
-     * @return Rate of change as a double.
-     */
-    template<class T, class Rep, std::intmax_t Num, std::intmax_t Den>
-    static auto rate_of_change ( T delta_v, std::chrono::duration<Rep, std::ratio<Num, Den>> delta_t ) 
-        { return delta_v / ( static_cast<double> ( delta_t.count () ) * static_cast<double> ( Num ) / static_cast<double> ( Den ) ); }
 
 };
 
