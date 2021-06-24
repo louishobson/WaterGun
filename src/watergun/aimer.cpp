@@ -21,13 +21,45 @@
 
 
 
+/** @name  get_movement_plan
+ * 
+ * @brief  Immediately get the movement plan for the next n aim periods.
+ * @param  n: The number of aim periods to single movements plans for.
+ * @return An array of single movements forming the plan. Empty if no targets are found.
+ */
+std::vector<watergun::aimer::single_movement> watergun::aimer::get_movement_plan ( int n )
+{
+    /* Get the next target */
+    tracked_user user = get_target ();
+
+    /* If there is a target, create the movement plan, else return an empty array */
+    if ( user.com != vector3d {} ) return create_movement_plan ( user, n ); else return {};
+}
+
+/** @name  wait_get_movement_plan
+ * 
+ * @brief  Wait for the data on tracked users to update, then get the movement plan for the next n aim periods.
+ * @param  n: The number of aim periods to single movements plans for.
+ * @return An array of single movements forming the plan. Empty if no targets are found.
+ */
+std::vector<watergun::aimer::single_movement> watergun::aimer::wait_get_movement_plan ( int n )
+{
+    /* Get the next target */
+    tracked_user user = wait_get_target ();
+
+    /* If there is a target, create the movement plan, else return an empty array */
+    if ( user.com != vector3d {} ) return create_movement_plan ( user, n ); else return {};
+}
+
+
+
 /** @name  calculate_aim
  * 
  * @brief  From a tracked user, find the yaw and pitch the watergun must shoot to hit the user for the given water velocity.
  * @param  user: The user to aim at.
- * @return A pair, containing the yaw and pitch in radians, or NaN for both if it is not possible to hit the user.
+ * @return A gun position, or NaN for both yaw and pitch if it is not possible to hit the user.
  */
-std::pair<XnFloat, XnFloat> watergun::aimer::calculate_aim ( const tracked_user& user ) const
+watergun::aimer::gun_position watergun::aimer::calculate_aim ( const tracked_user& user ) const
 {
     /* Solve the time quartic to test whether it is possible to hit the user */
     auto roots = solve_quartic
@@ -47,7 +79,7 @@ std::pair<XnFloat, XnFloat> watergun::aimer::calculate_aim ( const tracked_user&
     if ( time == INFINITY ) return { NAN, NAN };
 
     /* Else produce the angles */
-    return { user.com.X + user.com_rate.X * time, std::asin ( ( user.com.Y + user.com_rate.Y * time + 4.905 * time * time ) / ( water_rate * time ) ) };
+    return { user.com.X + user.com_rate.X * time, std::asin ( ( user.com.Y + user.com_rate.Y * time + 4.905f * time * time ) / ( water_rate * time ) ) };
 }
 
 
@@ -58,7 +90,7 @@ std::pair<XnFloat, XnFloat> watergun::aimer::calculate_aim ( const tracked_user&
  * @param  users: The users to aim at.
  * @return The tracked user the gun has chosen to aim for. The tracked user will be updated to represent the user's projected current position.
  */
-watergun::aimer::tracked_user watergun::aimer::choose_target ( const std::vector<tracked_user>& users )
+watergun::aimer::tracked_user watergun::aimer::choose_target ( const std::vector<tracked_user>& users ) const
 {
     /* Score which user to hit, the user with the highest score is chosen.
      * The required yaw to hit the user being at the center camera scores 1, at the edge of the FOV scores -1.
@@ -73,18 +105,57 @@ watergun::aimer::tracked_user watergun::aimer::choose_target ( const std::vector
     for ( const tracked_user& user : users )
     {
         /* Calculate aim and continue if it is not possible to hit the user */
-        auto aim = calculate_aim ( user ); if ( aim.first == NAN ) continue;
+        gun_position aim = calculate_aim ( user ); if ( aim.yaw == NAN ) continue;
 
         /* Get their score */
-        double score = ( std::abs ( aim.first ) / camera_fov.fHFOV ) * -2. + 1. + ( user.com.Z / camera_max_depth ) * -2. + 1. + ( user.com_rate.Z / 7. ) * -1.;
+        double score = ( std::abs ( aim.yaw ) / ( camera_fov.fHFOV / 2. ) ) * -2. + 1. + ( user.com.Z / camera_max_depth ) * -2. + 1. + ( user.com_rate.Z / 7. ) * -1.;
 
         /* If they have a new best score, update the best score and best user */
         if ( score > best_score ) { best_score = score; best_user = user; }
     }
 
-    /* Return the best user to aim for */
-    return best_user;
+    /* Return the best user to aim for (but project, just to be accurate) */
+    return project_tracked_user ( best_user );
 }
+
+
+
+/** @name  create_movement_plan
+ * 
+ * @brief  Over the next n lots of aim periods, create a list of single movements to follow to keep on track with hitting a tracked user.
+ * @param  user: The tracked user to aim for.
+ * @param  n: The number of aim periods to single movements plans for.
+ * @return The list of single movements forming a movement plan.
+ */
+std::vector<watergun::aimer::single_movement> watergun::aimer::create_movement_plan ( const tracked_user& user, const int n ) const
+{
+    /* Create the movement plan and store the change in yaw that has occured so far */
+    std::vector<single_movement> movement_plan;
+    XnFloat delta_yaw = 0.0;
+
+    /* Loop through n */
+    for ( int i = 0; i < n; ++i )
+    {
+        /* Project the user */
+        tracked_user proj_user = project_tracked_user ( user, user.timestamp + aim_period * ( i + 1 ) );
+
+        /* Get the aim for the user. Subtract the delta yaw. */
+        gun_position aim = calculate_aim ( proj_user ); aim.yaw -= delta_yaw;
+
+        /* Add the single movement */
+        movement_plan.emplace_back ( proj_user.timestamp, aim_period, rate_of_change ( aim.yaw, aim_period ), aim.pitch );
+
+        /* If the rate of change of yaw required is too great, limit it */
+        if ( movement_plan.back ().yaw_rate > max_yaw_velocity ) movement_plan.back ().yaw_rate = max_yaw_velocity;
+
+        /* Add to the delta yaw */
+        delta_yaw += movement_plan.back ().yaw_rate * duration_to_seconds ( aim_period ).count ();
+    }
+
+    /* Return the plan */
+    return movement_plan;
+}
+
 
 
 
