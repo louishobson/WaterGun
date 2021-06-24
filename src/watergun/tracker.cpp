@@ -103,33 +103,41 @@ watergun::tracker::~tracker ()
 
 /** @name  get_tracked_users
  * 
- * @brief  Immediately return an array of the currently tracked users.
+ * @brief  Immediately return an array of the currently tracked users. The timestamp and positions of the tracked users are projected to now.
  * @return Vector of users.
  */
 std::vector<watergun::tracker::tracked_user> watergun::tracker::get_tracked_users () const
 {
-    /* Lock the mutex */
+    /* Lock the mutex, copy the tracked users, then relock */
     std::unique_lock lock { tracked_users_mx };
+    auto tracked_users_copy = tracked_users;
+    lock.unlock ();
+
+    /* Update their positions */
+    for ( tracked_user& user : tracked_users_copy ) user = project_tracked_user ( user );
     
     /* Return the tracked users */
-    return tracked_users;
+    return tracked_users_copy;
 }
 
-/** @name  wait_tracked_users
+/** @name  wait_get_tracked_users
  * 
- * @brief  Wait for data on tracked users to update, then return an array of them.
+ * @brief  Wait for data on tracked users to update, then return an array of them. The timestamp and positions of the tracked users are projected to now.
  * @return Vector of users.
  */
-std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_tracked_users () const
+std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_get_tracked_users () const
 {
-    /* Lock the mutex */
+    /* Lock the mutex, wait on the condition variable, copy the tracked users, then relock */
     std::unique_lock lock { tracked_users_mx };
-
-    /* Wait on the condition variable */
     tracked_users_cv.wait ( lock );
+    auto tracked_users_copy = tracked_users;
+    lock.unlock ();
+
+    /* Update their positions */
+    for ( tracked_user& user : tracked_users_copy ) user = project_tracked_user ( user );
 
     /* Return the tracked users */
-    return tracked_users;
+    return tracked_users_copy;
 }
 
 

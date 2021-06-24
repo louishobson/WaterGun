@@ -203,17 +203,17 @@ public:
 
     /** @name  get_tracked_users
      * 
-     * @brief  Immediately return an array of the currently tracked users.
+     * @brief  Immediately return an array of the currently tracked users. The timestamp and positions of the tracked users are projected to now.
      * @return Vector of users.
      */
     std::vector<tracked_user> get_tracked_users () const;
 
-    /** @name  wait_tracked_users
+    /** @name  wait_get_tracked_users
      * 
-     * @brief  Wait for data on tracked users to update, then return an array of them.
+     * @brief  Wait for data on tracked users to update, then return an array of them. The timestamp and positions of the tracked users are projected to now.
      * @return Vector of users.
      */
-    std::vector<tracked_user> wait_tracked_users () const;
+    std::vector<tracked_user> wait_get_tracked_users () const;
 
 
 
