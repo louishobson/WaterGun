@@ -158,6 +158,9 @@ class watergun::tracker
 {
 public:
 
+    /* Clock typedefs */
+    typedef std::chrono::system_clock clock;
+
     /** struct tracked_users
      * 
      * A structure to store information about a single user, including their ID and position in many formats.
@@ -168,7 +171,7 @@ public:
         XnUserID id;
 
         /* The point in time that the position was taken */
-        std::chrono::system_clock::time_point timestamp;
+        clock::time_point timestamp;
 
         /* The user's centre of mass in mixed polar coordinates.
          * X is an angle from the centre of the camera in radians, Y is the perpandicular height from the camera's center, Z is the distance from the camera. 
@@ -211,6 +214,25 @@ public:
      * @return Vector of users.
      */
     std::vector<tracked_user> wait_tracked_users () const;
+
+
+
+    /** @name  project_tracked_user
+     * 
+     * @brief  Update a user's position to match a new timestamp, given that they follow the same velocity.
+     * @param  user: The user to update.
+     * @param  timestamp: The new timestamp that their position should match. Defaults to now.
+     * @return The updated tracked user.
+     */
+    static tracked_user project_tracked_user ( tracked_user user, clock::time_point timestamp = clock::now () );
+
+
+
+protected:
+
+    /* The FOV and maximum depth of the camera */
+    XnFieldOfView camera_fov;
+    XnFloat camera_max_depth;
 
 
 

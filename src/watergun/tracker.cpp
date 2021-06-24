@@ -67,6 +67,10 @@ watergun::tracker::tracker ( const vector3d camera_offset, std::string config_pa
     check_status ( context.FindExistingNode ( XN_NODE_TYPE_DEPTH, depth_generator ), "Failed to init depth generator" );
     check_status ( context.FindExistingNode ( XN_NODE_TYPE_USER,  user_generator  ), "Failed to init user generator"  );
 
+    /* Set the protected camera properties */
+    depth_generator.GetFieldOfView ( camera_fov );
+    camera_max_depth = depth_generator.GetDeviceMaxDepth () / 1000.;
+
     /* Start generation */
     context.StartGeneratingAll ();
 
@@ -97,6 +101,60 @@ watergun::tracker::~tracker ()
 
 
 
+/** @name  get_tracked_users
+ * 
+ * @brief  Immediately return an array of the currently tracked users.
+ * @return Vector of users.
+ */
+std::vector<watergun::tracker::tracked_user> watergun::tracker::get_tracked_users () const
+{
+    /* Lock the mutex */
+    std::unique_lock lock { tracked_users_mx };
+    
+    /* Return the tracked users */
+    return tracked_users;
+}
+
+/** @name  wait_tracked_users
+ * 
+ * @brief  Wait for data on tracked users to update, then return an array of them.
+ * @return Vector of users.
+ */
+std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_tracked_users () const
+{
+    /* Lock the mutex */
+    std::unique_lock lock { tracked_users_mx };
+
+    /* Wait on the condition variable */
+    tracked_users_cv.wait ( lock );
+
+    /* Return the tracked users */
+    return tracked_users;
+}
+
+
+
+/** @name  project_tracked_user
+ * 
+ * @brief  Update a user's position to match a new timestamp, given that they follow the same velocity.
+ * @param  user: The user to update.
+ * @param  timestamp: The new timestamp that their position should match.
+ * @return The updated tracked user.
+ */
+watergun::tracker::tracked_user watergun::tracker::project_tracked_user ( tracked_user user, const clock::time_point timestamp )
+{
+    /* Find the COM at the point in time specified */
+    user.com = user.com + user.com_rate * std::chrono::duration_cast<std::chrono::duration<double>> ( timestamp - user.timestamp ).count ();
+
+    /* Set the new timestamp */
+    user.timestamp = timestamp;
+
+    /* Return the altered user */
+    return user;
+}
+
+
+
 /** @name  tracker_thread_function
  * 
  * @brief  Function run by tracker_thread. Runs in a loop, updating tracked_users as new frames come in.
@@ -108,7 +166,7 @@ void watergun::tracker::tracker_thread_function ()
     while ( depth_generator.WaitAndUpdateData () == XN_STATUS_OK && !end_tracker_thread )
     {
         /* Get the timestamp that the depth data became availible*/
-        auto timestamp = std::chrono::system_clock::now ();
+        clock::time_point timestamp = clock::now ();
 
         /* Wait for the user data to become availible */
         user_generator.WaitAndUpdateData ();
@@ -146,39 +204,6 @@ void watergun::tracker::tracker_thread_function ()
         tracked_users = std::move ( new_tracked_users );
         tracked_users_cv.notify_all ();
     }
-}
-
-
-
-/** @name  get_tracked_users
- * 
- * @brief  Immediately return an array of the currently tracked users.
- * @return Vector of users.
- */
-std::vector<watergun::tracker::tracked_user> watergun::tracker::get_tracked_users () const
-{
-    /* Lock the mutex */
-    std::unique_lock lock { tracked_users_mx };
-    
-    /* Return the tracked users */
-    return tracked_users;
-}
-
-/** @name  wait_tracked_users
- * 
- * @brief  Wait for data on tracked users to update, then return an array of them.
- * @return Vector of users.
- */
-std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_tracked_users () const
-{
-    /* Lock the mutex */
-    std::unique_lock lock { tracked_users_mx };
-
-    /* Wait on the condition variable */
-    tracked_users_cv.wait ( lock );
-
-    /* Return the tracked users */
-    return tracked_users;
 }
 
 
