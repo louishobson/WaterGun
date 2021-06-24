@@ -73,16 +73,16 @@ public:
     /** @name  get_target
      * 
      * @brief  Immediately get the next target to hit, based off of the data currently availible.
-     * @return The chosen tracked user. The timestamp will have time_since_epoch () == 0, if no user is found.
+     * @return The chosen tracked user. The timestamp will have time_since_epoch () == 0, if no user is found or can be hit.
      */
     tracked_user get_target () { return choose_target ( get_tracked_users () ); }
 
-    /** @name  wait_target
+    /** @name  wait_get_target
      * 
      * @brief  Wait for the data on tracked users to update, then choose the next target to hit.
-     * @return The chosen tracked user. The timestamp will have time_since_epoch () == 0, if no user is found.
+     * @return The chosen tracked user. The timestamp will have time_since_epoch () == 0, if no user is found or can be hit.
      */
-    tracked_user wait_target () { return choose_target ( wait_tracked_users () ); }
+    tracked_user wait_get_target () { return choose_target ( wait_get_tracked_users () ); }
 
 
 
@@ -90,10 +90,9 @@ public:
      * 
      * @brief  From a tracked user, find the yaw and pitch the watergun must shoot to hit the user for the given water velocity.
      * @param  user: The user to aim at.
-     * @param  timestamp: The time at which to hit the user. Defaults to now, which will give the aiming for the user's current position (based on the tracked user's timestamp).
      * @return A pair, containing the yaw and pitch in radians, or NaN for both if it is not possible to hit the user.
      */
-    std::pair<XnFloat, XnFloat> calculate_aim ( tracked_user user, clock::time_point timestamp = clock::now () ) const;
+    std::pair<XnFloat, XnFloat> calculate_aim ( const tracked_user& user ) const;
 
 
 

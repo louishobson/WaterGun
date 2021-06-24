@@ -25,14 +25,10 @@
  * 
  * @brief  From a tracked user, find the yaw and pitch the watergun must shoot to hit the user for the given water velocity.
  * @param  user: The user to aim at.
- * @param  timestamp: The time at which to hit the user. Defaults to now, which will give the aiming for the user's current position (based on the tracked user's timestamp).
  * @return A pair, containing the yaw and pitch in radians, or NaN for both if it is not possible to hit the user.
  */
-std::pair<XnFloat, XnFloat> watergun::aimer::calculate_aim ( tracked_user user, const clock::time_point timestamp ) const
+std::pair<XnFloat, XnFloat> watergun::aimer::calculate_aim ( const tracked_user& user ) const
 {
-    /* Update the user based on the timestamp */
-    user = project_tracked_user ( user, timestamp );
-
     /* Solve the time quartic to test whether it is possible to hit the user */
     auto roots = solve_quartic
     (
@@ -65,7 +61,7 @@ std::pair<XnFloat, XnFloat> watergun::aimer::calculate_aim ( tracked_user user, 
 watergun::aimer::tracked_user watergun::aimer::choose_target ( const std::vector<tracked_user>& users )
 {
     /* Score which user to hit, the user with the highest score is chosen.
-     * Being at the center of the camera scores 1, at the edge of the FOV scores -1.
+     * The required yaw to hit the user being at the center camera scores 1, at the edge of the FOV scores -1.
      * Being 0m away from the camera scores 1, being the maximum distance away scores -1.
      * Moving towards the camera at 7m/s scores 1, while away scores -1.
      */
@@ -74,13 +70,13 @@ watergun::aimer::tracked_user watergun::aimer::choose_target ( const std::vector
     double best_score = -100; tracked_user best_user;
 
     /* Loop through the users */
-    for ( tracked_user user : users )
+    for ( const tracked_user& user : users )
     {
-        /* Update the user */
-        user = project_tracked_user ( user );
+        /* Calculate aim and continue if it is not possible to hit the user */
+        auto aim = calculate_aim ( user ); if ( aim.first == NAN ) continue;
 
         /* Get their score */
-        double score = ( std::abs ( user.com.X ) / camera_fov.fHFOV ) * -2. + 1. + ( user.com.Z / camera_max_depth ) * -2. + 1. + ( user.com_rate.Z / 7. ) * -1.;
+        double score = ( std::abs ( aim.first ) / camera_fov.fHFOV ) * -2. + 1. + ( user.com.Z / camera_max_depth ) * -2. + 1. + ( user.com_rate.Z / 7. ) * -1.;
 
         /* If they have a new best score, update the best score and best user */
         if ( score > best_score ) { best_score = score; best_user = user; }
