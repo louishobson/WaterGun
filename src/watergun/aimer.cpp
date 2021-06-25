@@ -114,8 +114,8 @@ watergun::aimer::tracked_user watergun::aimer::choose_target ( const std::vector
         if ( score > best_score ) { best_score = score; best_user = user; }
     }
 
-    /* Return the best user to aim for (but project, just to be accurate) */
-    return project_tracked_user ( best_user );
+    /* Return the best user to aim for */
+    return best_user;
 }
 
 
@@ -155,7 +155,6 @@ std::vector<watergun::aimer::single_movement> watergun::aimer::create_movement_p
     /* Return the plan */
     return movement_plan;
 }
-
 
 
 
