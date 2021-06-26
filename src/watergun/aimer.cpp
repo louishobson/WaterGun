@@ -146,7 +146,7 @@ std::vector<watergun::aimer::single_movement> watergun::aimer::create_movement_p
         movement_plan.emplace_back ( proj_user.timestamp, aim_period, rate_of_change ( aim.yaw, aim_period ), aim.pitch );
 
         /* If the rate of change of yaw required is too great, limit it */
-        if ( movement_plan.back ().yaw_rate > max_yaw_velocity ) movement_plan.back ().yaw_rate = max_yaw_velocity;
+        movement_plan.back ().yaw_rate = std::clamp ( movement_plan.back ().yaw_rate, -max_yaw_velocity, +max_yaw_velocity );
 
         /* Add to the delta yaw */
         delta_yaw += movement_plan.back ().yaw_rate * duration_to_seconds ( aim_period ).count ();
