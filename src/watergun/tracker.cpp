@@ -114,7 +114,7 @@ std::vector<watergun::tracker::tracked_user> watergun::tracker::get_tracked_user
     lock.unlock ();
 
     /* Update their positions */
-    for ( tracked_user& user : tracked_users_copy ) user = project_tracked_user ( user );
+    for ( tracked_user& user : tracked_users_copy ) user = dynamic_project_tracked_user ( user );
     
     /* Return the tracked users */
     return tracked_users_copy;
@@ -134,7 +134,7 @@ std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_get_tracked
     lock.unlock ();
 
     /* Update their positions */
-    for ( tracked_user& user : tracked_users_copy ) user = project_tracked_user ( user );
+    for ( tracked_user& user : tracked_users_copy ) user = dynamic_project_tracked_user ( user );
 
     /* Return the tracked users */
     return tracked_users_copy;
@@ -149,16 +149,15 @@ std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_get_tracked
  * @param  timestamp: The new timestamp that their position should match.
  * @return The updated tracked user.
  */
-watergun::tracker::tracked_user watergun::tracker::project_tracked_user ( tracked_user user, const clock::time_point timestamp )
+watergun::tracker::tracked_user watergun::tracker::project_tracked_user ( const tracked_user& user, const clock::time_point timestamp )
 {
-    /* Find the COM at the point in time specified */
-    user.com = user.com + user.com_rate * std::chrono::duration_cast<std::chrono::duration<double>> ( timestamp - user.timestamp ).count ();
-
-    /* Set the new timestamp */
-    user.timestamp = timestamp;
-
-    /* Return the altered user */
-    return user;
+    /* Return a tracked user with updated timestamp and position */
+    return tracked_user
+    {
+        user.id, timestamp,
+        user.com + user.com_rate * duration_to_seconds ( timestamp - user.timestamp ).count (),
+        user.com_rate,
+    };
 }
 
 
