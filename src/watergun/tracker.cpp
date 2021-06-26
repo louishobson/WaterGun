@@ -74,6 +74,10 @@ watergun::tracker::tracker ( const vector3d _camera_offset, std::string config_p
     /* Start generation */
     context.StartGeneratingAll ();
 
+    /* Set the timestamps */
+    system_timestamp = clock::now ();
+    xnOSGetTimeStamp ( &openni_timestamp );
+
     /* Start the tracking thread */
     tracker_thread = std::thread { &tracker::tracker_thread_function, this };
 }
@@ -149,7 +153,7 @@ std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_get_tracked
  * @param  timestamp: The new timestamp that their position should match.
  * @return The updated tracked user.
  */
-watergun::tracker::tracked_user watergun::tracker::project_tracked_user ( const tracked_user& user, const clock::time_point timestamp )
+watergun::tracker::tracked_user watergun::tracker::project_tracked_user ( const tracked_user& user, const clock::time_point timestamp ) const
 {
     /* Return a tracked user with updated timestamp and position */
     return tracked_user
@@ -170,13 +174,10 @@ watergun::tracker::tracked_user watergun::tracker::project_tracked_user ( const 
 void watergun::tracker::tracker_thread_function ()
 {
     /* Loop while updating depth buffers */
-    while ( depth_generator.WaitAndUpdateData () == XN_STATUS_OK && !end_tracker_thread )
+    while ( user_generator.WaitAndUpdateData () == XN_STATUS_OK && !end_tracker_thread )
     {
-        /* Get the timestamp that the depth data became availible*/
-        clock::time_point timestamp = clock::now ();
-
-        /* Wait for the user data to become availible */
-        user_generator.WaitAndUpdateData ();
+        /* Get the timestamp that the depth data became availible */
+        clock::time_point timestamp = openni_to_system_timestamp ( depth_generator.GetTimestamp () );
 
         /* Get the number of users availible and populate an array with those users' IDs */
         XnUInt16 num_users = WATERGUN_MAX_TRACKABLE_USERS; XnUserID user_ids [ WATERGUN_MAX_TRACKABLE_USERS ];

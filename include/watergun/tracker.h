@@ -224,7 +224,7 @@ public:
      * @param  timestamp: The new timestamp that their position should match. Defaults to now.
      * @return The updated tracked user.
      */
-    static tracked_user project_tracked_user ( const tracked_user& user, clock::time_point timestamp = clock::now () );
+    tracked_user project_tracked_user ( const tracked_user& user, clock::time_point timestamp = clock::now () ) const;
 
     /** @name  dynamic_project_tracked_user
      * 
@@ -243,6 +243,9 @@ protected:
     /* The FOV and maximum depth of the camera */
     XnFieldOfView camera_fov;
     XnFloat camera_max_depth;
+
+    /* The offset of the camera from the origin */
+    vector3d camera_offset;
 
 
     /** @name  duration_to_seconds
@@ -280,10 +283,9 @@ private:
     xn::DepthGenerator depth_generator;
     xn::UserGenerator  user_generator;
 
-
-
-    /* The offset of the camera from the origin */
-    vector3d camera_offset;
+    /* System and OpenNI timestamps at the start of the program */
+    clock::time_point system_timestamp;
+    XnUInt64 openni_timestamp;
 
 
 
@@ -308,6 +310,16 @@ private:
      * @return Nothing.
      */
     void tracker_thread_function ();
+
+
+
+    /** @name  openni_to_system_timestamp
+     * 
+     * @brief  Change an OpenNI timestamp to a system timestamp.
+     * @param  timestamp: The OpenNI timestamp.
+     * @return A system timestamp.
+     */
+    clock::time_point openni_to_system_timestamp ( XnUInt64 timestamp ) const { return system_timestamp + std::chrono::microseconds { timestamp - openni_timestamp }; }
 
 
 
