@@ -193,7 +193,6 @@ watergun::controller::tracked_user watergun::controller::dynamic_project_tracked
 
 
 
-
 /** @name  movement_planner_thread_function
  * 
  * @brief  Function run by movement_planner_thread. Continuously updates movement_plan, and notifies the condition variable.
