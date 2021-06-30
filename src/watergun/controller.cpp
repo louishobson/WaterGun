@@ -208,9 +208,6 @@ void watergun::controller::movement_planner_thread_function ()
         tracked_user target = choose_target ( wait_get_tracked_users () );
         if ( target.com == vector3d {} ) { movement_cv.notify_all (); continue; }
 
-        std::cout << "!! " << target.com.X * 180. / M_PI << std::endl;
-        std::cout << "!! " << target.com_rate.X * 180. / M_PI << std::endl;
-
         /* Lock the mutex */
         std::unique_lock lock { movement_mx };
 
