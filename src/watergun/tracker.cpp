@@ -25,11 +25,13 @@
  * 
  * @brief Sets up the context and configures OpenNI/NITE for human recognition.
  * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
+ * @param _num_trackable_users: The max number of trackable users.
  * @param config: Path to a configuration file to use. If unspecified, the default local and global paths will be used.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
-watergun::tracker::tracker ( const vector3d _camera_offset, std::string config_path )
+watergun::tracker::tracker ( const vector3d _camera_offset, const XnUInt16 _num_trackable_users, std::string config_path )
     : camera_offset { _camera_offset }
+    , num_trackable_users { _num_trackable_users }
 {
     /* Return value and error storage */
     XnStatus status; xn::EnumerationErrors errors;
@@ -69,7 +71,7 @@ watergun::tracker::tracker ( const vector3d _camera_offset, std::string config_p
 
     /* Set the protected camera properties */
     depth_generator.GetFieldOfView ( camera_fov );
-    camera_max_depth = depth_generator.GetDeviceMaxDepth () / 1000.;
+    camera_depth = depth_generator.GetDeviceMaxDepth () / 1000.;
 
     /* Start generation */
     context.StartGeneratingAll ();
@@ -90,8 +92,11 @@ watergun::tracker::tracker ( const vector3d _camera_offset, std::string config_p
  */
 watergun::tracker::~tracker ()
 {
-    /* If the tracker thread is running, stop and join it */
-    if ( tracker_thread.joinable () ) { end_tracker_thread = true; tracker_thread.join (); }
+    /* Set the end threads flag to true */
+    end_threads = true;
+
+    /* Join the tracker thread, if running */
+    if ( tracker_thread.joinable () ) tracker_thread.join ();
 
     /* Stop generation */
     context.StopGeneratingAll ();
@@ -112,7 +117,7 @@ watergun::tracker::~tracker ()
  */
 std::vector<watergun::tracker::tracked_user> watergun::tracker::get_tracked_users () const
 {
-    /* Lock the mutex, copy the tracked users, then relock */
+    /* Lock the mutex, copy the tracked users, then unlock */
     std::unique_lock lock { tracked_users_mx };
     auto tracked_users_copy = tracked_users;
     lock.unlock ();
@@ -131,7 +136,7 @@ std::vector<watergun::tracker::tracked_user> watergun::tracker::get_tracked_user
  */
 std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_get_tracked_users () const
 {
-    /* Lock the mutex, wait on the condition variable, copy the tracked users, then relock */
+    /* Lock the mutex, wait on the condition variable, copy the tracked users, then unlock */
     std::unique_lock lock { tracked_users_mx };
     tracked_users_cv.wait ( lock );
     auto tracked_users_copy = tracked_users;
@@ -174,35 +179,37 @@ watergun::tracker::tracked_user watergun::tracker::project_tracked_user ( const 
 void watergun::tracker::tracker_thread_function ()
 {
     /* Loop while updating depth buffers */
-    while ( user_generator.WaitAndUpdateData () == XN_STATUS_OK && !end_tracker_thread )
+    while ( user_generator.WaitAndUpdateData () == XN_STATUS_OK && !end_threads )
     {
         /* Get the timestamp that the depth data became availible */
         clock::time_point timestamp = openni_to_system_timestamp ( depth_generator.GetTimestamp () );
 
         /* Get the number of users availible and populate an array with those users' IDs */
-        XnUInt16 num_users = WATERGUN_MAX_TRACKABLE_USERS; XnUserID user_ids [ WATERGUN_MAX_TRACKABLE_USERS ];
-        user_generator.GetUsers ( user_ids, num_users );
+        XnUInt16 num_users = num_trackable_users; std::vector<XnUserID> user_ids { num_trackable_users };
+        user_generator.GetUsers ( user_ids.data (), num_users );
 
         /* Create a new tracked users array */
         std::vector<tracked_user> new_tracked_users;
 
         /* Lock the mutex and loop through the detected users */
         std::unique_lock lock { tracked_users_mx };
-        for ( XnUInt16 i = 0; i < num_users; ++i )
+        for ( const XnUserID user_id : user_ids )
         {
             /* Create the new user */
-            tracked_user user { user_ids [ i ], timestamp };
+            tracked_user user { user_id, timestamp };
 
             /* Get the COM for this user in cartesian coordinates. If the Z-coord is 0 (the user is lost), ignore this user. Else change to m/s and add the camera offset. */
-            user_generator.GetCoM ( user_ids [ i ], user.com );
+            user_generator.GetCoM ( user_id, user.com );
             if ( user.com.Z == 0. ) continue; user.com = user.com / 1000. + camera_offset;
 
             /* Replace the COM with polar coordinates */
             user.com = { std::atan ( user.com.X / user.com.Z ), user.com.Y, std::sqrt ( user.com.X * user.com.X + user.com.Z * user.com.Z ) };
 
-            /* See if a user of the same ID can be found in the last frame's tracked users. If it can, set their rate of change. */
-            auto it = std::find_if ( tracked_users.begin (), tracked_users.end (), [ id = user_ids [ i ] ] ( const tracked_user& u ) { return u.id == id; } );
-            if ( it != tracked_users.end () ) user.com_rate = rate_of_change ( user.com - it->com, user.timestamp - it->timestamp );
+            /* See if a user of the same ID can be found in the last frame's tracked users */
+            auto it = std::find_if ( tracked_users.begin (), tracked_users.end (), [ user_id ] ( const tracked_user& u ) { return u.id == user_id; } );
+            
+            /* If they were tracked in the last frame, dynamically project the user position back to the time of the last frame to calculate the COM rate. */
+            if ( it != tracked_users.end () ) user.com_rate = rate_of_change ( dynamic_project_tracked_user ( user, it->timestamp ).com - it->com, user.timestamp - it->timestamp );
 
             /* Add the tracked user to the new array */
             new_tracked_users.push_back ( user );

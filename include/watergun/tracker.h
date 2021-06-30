@@ -179,7 +179,7 @@ public:
         vector3d com;
 
         /* The rate of change of the COM */
-        vector3d com_rate = { 0., 0., 0. };
+        vector3d com_rate;
     };
 
 
@@ -188,10 +188,11 @@ public:
      * 
      * @brief Sets up the context and configures OpenNI/NITE for human recognition.
      * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
+     * @param _num_trackable_users: The max number of trackable users.
      * @param config_path: Path to a configuration file to use. If unspecified, the default local and global paths will be used.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    explicit tracker ( vector3d _camera_offset = vector3d {}, std::string config_path = "" );
+    explicit tracker ( vector3d _camera_offset = vector3d {}, XnUInt16 _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS, std::string config_path = "" );
 
     /** @name destructor
      * 
@@ -228,7 +229,7 @@ public:
 
     /** @name  dynamic_project_tracked_user
      * 
-     * @brief  Same as project_tracked_user, except will be overload in derived classes to take the rotation of the camera into account.
+     * @brief  Same as project_tracked_user, except will be overridden in derived classes to take the rotation of the camera into account.
      * @param  user: The user to update.
      * @param  timestamp: The new timestamp that their position should match. Defaults to now.
      * @return The updated tracked user.
@@ -242,10 +243,24 @@ protected:
 
     /* The FOV and maximum depth of the camera */
     XnFieldOfView camera_fov;
-    XnFloat camera_max_depth;
+    XnFloat camera_depth;
 
     /* The offset of the camera from the origin */
     vector3d camera_offset;
+
+    /* The max number of trackabke users */
+    XnUInt16 num_trackable_users;
+
+
+
+    /* An arbitrarily large duration and duration */
+    static constexpr clock::duration   large_duration   = std::chrono::hours { 24 };
+    const            clock::time_point large_time_point = clock::now () + large_duration; 
+
+    /* Zero duration and time point */
+    static constexpr clock::duration   zero_duration   = clock::duration::zero ();
+    static constexpr clock::time_point zero_time_point = clock::time_point {};
+
 
 
     /** @name  duration_to_seconds
@@ -296,11 +311,13 @@ private:
     mutable std::mutex tracked_users_mx;
     mutable std::condition_variable tracked_users_cv;
 
+
+
     /* The thread which is handling updating tracked_users */
     std::thread tracker_thread;
 
-    /* Atomic bool telling the tracker thread when to quite */
-    std::atomic_bool end_tracker_thread = false;
+    /* Atomic bool telling the tracker thread when to quit */
+    std::atomic_bool end_threads = false;
 
 
 
