@@ -21,38 +21,6 @@
 
 
 
-/** @name  get_movement_plan
- * 
- * @brief  Immediately get the movement plan for the next n aim periods.
- * @param  n: The number of aim periods to single movements plans for.
- * @return An array of single movements forming the plan. Empty if no targets are found.
- */
-std::vector<watergun::aimer::single_movement> watergun::aimer::get_movement_plan ( int n )
-{
-    /* Get the next target */
-    tracked_user user = get_target ();
-
-    /* If there is a target, create the movement plan, else return an empty array */
-    if ( user.com != vector3d {} ) return create_movement_plan ( user, n ); else return {};
-}
-
-/** @name  wait_get_movement_plan
- * 
- * @brief  Wait for the data on tracked users to update, then get the movement plan for the next n aim periods.
- * @param  n: The number of aim periods to single movements plans for.
- * @return An array of single movements forming the plan. Empty if no targets are found.
- */
-std::vector<watergun::aimer::single_movement> watergun::aimer::wait_get_movement_plan ( int n )
-{
-    /* Get the next target */
-    tracked_user user = wait_get_target ();
-
-    /* If there is a target, create the movement plan, else return an empty array */
-    if ( user.com != vector3d {} ) return create_movement_plan ( user, n ); else return {};
-}
-
-
-
 /** @name  calculate_aim
  * 
  * @brief  From a tracked user, find the yaw and pitch the watergun must shoot to hit the user for the given water velocity.
@@ -76,7 +44,7 @@ watergun::aimer::gun_position watergun::aimer::calculate_aim ( const tracked_use
     for ( const auto& root : roots ) if ( std::abs ( root.imag () ) < 1e-6 && root.real () > 0. && root.real () < time ) time = root.real ();
 
     /* If time is still infinity, there are no solutions, so return NaN */
-    if ( time == INFINITY ) return { NAN, NAN };
+    if ( time == INFINITY ) return { std::nanf ( "" ), std::nanf ( "" ) };
 
     /* Else produce the angles */
     return { user.com.X + user.com_rate.X * time, std::asin ( ( user.com.Y + user.com_rate.Y * time + 4.905f * time * time ) / ( water_rate * time ) ) };
@@ -105,10 +73,10 @@ watergun::aimer::tracked_user watergun::aimer::choose_target ( const std::vector
     for ( const tracked_user& user : users )
     {
         /* Calculate aim and continue if it is not possible to hit the user */
-        gun_position aim = calculate_aim ( user ); if ( aim.yaw == NAN ) continue;
+        gun_position aim = calculate_aim ( user ); if ( std::isnan ( aim.yaw ) ) continue;
 
         /* Get their score */
-        double score = ( std::abs ( aim.yaw ) / ( camera_fov.fHFOV / 2. ) ) * -2. + 1. + ( user.com.Z / camera_max_depth ) * -2. + 1. + ( user.com_rate.Z / 7. ) * -1.;
+        double score = ( std::abs ( aim.yaw ) / ( camera_fov.fHFOV / 2. ) ) * -2. + 1. + ( user.com.Z / camera_depth ) * -2. + 1. + ( user.com_rate.Z / 7. ) * -1.;
 
         /* If they have a new best score, update the best score and best user */
         if ( score > best_score ) { best_score = score; best_user = user; }
@@ -120,18 +88,20 @@ watergun::aimer::tracked_user watergun::aimer::choose_target ( const std::vector
 
 
 
-/** @name  create_movement_plan
+/** @name  calculate_future_movements
  * 
  * @brief  Over the next n lots of aim periods, create a list of single movements to follow to keep on track with hitting a tracked user.
  * @param  user: The tracked user to aim for.
  * @param  n: The number of aim periods to single movements plans for.
  * @return The list of single movements forming a movement plan.
  */
-std::vector<watergun::aimer::single_movement> watergun::aimer::create_movement_plan ( const tracked_user& user, const int n ) const
+std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_movements ( const tracked_user& user, int n ) const
 {
-    /* Create the movement plan and store the change in yaw that has occured so far */
-    std::vector<single_movement> movement_plan;
-    XnFloat delta_yaw = 0.0;
+    /* Create the list of future movements */
+    std::list<single_movement> future_movements;
+
+    /* Store the change in yaw over the loop */
+    XnFloat delta_yaw = 0.;
 
     /* Loop through n */
     for ( int i = 0; i < n; ++i )
@@ -139,21 +109,24 @@ std::vector<watergun::aimer::single_movement> watergun::aimer::create_movement_p
         /* Project the user */
         tracked_user proj_user = project_tracked_user ( user, user.timestamp + aim_period * ( i + 1 ) );
 
-        /* Get the aim for the user. Subtract the delta yaw. */
-        gun_position aim = calculate_aim ( proj_user ); aim.yaw -= delta_yaw;
+        /* Get the aim for the user. */
+        gun_position aim = calculate_aim ( proj_user );
+
+        /* If it is not possible to hit the user, break, else take away the delta yaw */
+        if ( std::isnan ( aim.yaw ) ) break; aim.yaw -= delta_yaw;
+
+        /* Calculate the yaw rate */
+        XnFloat yaw_rate = std::clamp ( rate_of_change ( aim.yaw, aim_period ), -max_yaw_velocity, +max_yaw_velocity );
 
         /* Add the single movement */
-        movement_plan.emplace_back ( proj_user.timestamp, aim_period, rate_of_change ( aim.yaw, aim_period ), aim.pitch );
-
-        /* If the rate of change of yaw required is too great, limit it */
-        movement_plan.back ().yaw_rate = std::clamp ( movement_plan.back ().yaw_rate, -max_yaw_velocity, +max_yaw_velocity );
+        future_movements.emplace_back ( aim_period, large_time_point, yaw_rate, aim.pitch );
 
         /* Add to the delta yaw */
-        delta_yaw += movement_plan.back ().yaw_rate * duration_to_seconds ( aim_period ).count ();
+        delta_yaw += yaw_rate * duration_to_seconds ( aim_period ).count ();
     }
 
-    /* Return the plan */
-    return movement_plan;
+    /* Return the list */
+    return future_movements;
 }
 
 
