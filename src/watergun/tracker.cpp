@@ -176,8 +176,6 @@ void watergun::tracker::tracker_thread_function ()
         /* Recompute average computation time */
         average_generation_time = std::chrono::duration_cast<clock::duration> ( average_generation_time * 0.9 + ( clock::now () - frame_timestamp ) * 0.1 );
 
-        std::cout << "!!!" << ( clock::now () - frame_timestamp ).count () << std::endl;
-
         /* Get the number of users availible and populate an array with those users' IDs */
         XnUInt16 num_users = num_trackable_users; std::vector<XnUserID> user_ids { num_trackable_users };
         user_generator.GetUsers ( user_ids.data (), num_users );
