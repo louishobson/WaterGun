@@ -86,11 +86,10 @@ public:
      * @param _aim_period: The period of time in seconds with which to spire to be correctly aimed within.
      * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
      * @param _num_trackable_users: The max number of trackable users.
-     * @param config_path: Path to a configuration file to use. If unspecified, the default local and global paths will be used.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    aimer ( XnFloat _water_rate, XnFloat _max_yaw_velocity, clock::duration _aim_period, vector3d _camera_offset = vector3d {}, XnUInt16 _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS, const std::string& config_path = "" )
-        : tracker { _camera_offset, _num_trackable_users, config_path }
+    aimer ( XnFloat _water_rate, XnFloat _max_yaw_velocity, clock::duration _aim_period, vector3d _camera_offset = vector3d {}, XnUInt16 _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS )
+        : tracker { _camera_offset, _num_trackable_users }
         , water_rate { _water_rate }
         , max_yaw_velocity { _max_yaw_velocity }
         , aim_period { _aim_period }
