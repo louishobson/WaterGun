@@ -31,28 +31,15 @@
 #include <vector>
 #include <watergun/watergun_exception.h>
 #include <XnCppWrapper.h>
+#include <XnPropNames.h>
+
+
+
+#include <iostream>
 
 
 
 /* MACRO DEFINITIONS */
-
-/** XML local configuration file
- * 
- * The relative path to the local configuration file.
- * This is the first choice for configuration files.
- */
-#ifndef WATERGUN_XML_LOCAL_CONFIG_PATH
-    #define WATERGUN_XML_LOCAL_CONFIG_PATH "./config/config.xml"
-#endif
-
-/** XML global configuration file
- * 
- * The full path to the global configuration file.
- * This is second choice if the local file cannot be found.
- */
-#ifndef WATERGUN_XML_GLOBAL_CONFIG_PATH
-    #define WATERGUN_XML_GLOBAL_CONFIG_PATH "/etc/watergun/config.xml"
-#endif
 
 /** Maximum error message length
  * 
@@ -189,10 +176,9 @@ public:
      * @brief Sets up the context and configures OpenNI/NITE for human recognition.
      * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
      * @param _num_trackable_users: The max number of trackable users.
-     * @param config_path: Path to a configuration file to use. If unspecified, the default local and global paths will be used.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    explicit tracker ( vector3d _camera_offset = vector3d {}, XnUInt16 _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS, std::string config_path = "" );
+    explicit tracker ( vector3d _camera_offset = vector3d {}, XnUInt16 _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS );
 
     /** @name destructor
      * 
@@ -215,6 +201,13 @@ public:
      * @return Vector of users.
      */
     std::vector<tracked_user> wait_get_tracked_users () const;
+
+    /** @name  get_average_generation_time
+     * 
+     * @brief  Get the average time taken to generate depth data.
+     * @return The average duration.
+     */
+    clock::duration get_average_generation_time () const;
 
 
 
@@ -306,6 +299,9 @@ private:
 
     /* An array of the current tracked users */
     std::vector<tracked_user> tracked_users;
+
+    /* The average computation time for the user generator */
+    clock::duration average_generation_time { 0 };
 
     /* A mutex and condition variable to protect tracked_users */
     mutable std::mutex tracked_users_mx;
