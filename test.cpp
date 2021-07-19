@@ -32,24 +32,24 @@ int main ()
     std::signal ( SIGINT, [] ( int signum ) { quit = true; } );
 
     /* Create the tracker */
-    watergun::controller controller { std::chrono::microseconds { 750 }, M_PI / 2., 10., M_PI, std::chrono::milliseconds { 30 } };
+    watergun::tracker controller {};
 
     /* Loop until signalled to quit */
     while ( !quit )
     {
         /* Get the next info on tracked users */
-        //auto t = controller.wait_get_target ();
+        auto tracked_users = controller.wait_get_tracked_users ();
 
         /* Print info */
-        //if ( t.com != watergun::vector3d {} ) 
+        if ( tracked_users.size () ) 
         {
+            auto t = tracked_users.front ();
             //auto aim = controller.calculate_aim ( t );
             //std::cout << t.com.X * 180 / M_PI << "    " << std::atan ( t.com.Y / t.com.Z ) * 180 / M_PI << "    " << aim.yaw * 180 / M_PI << "    " << aim.pitch * 180 / M_PI << std::endl;
-            //std::cout << t.com.X * 180 / M_PI << "    " << t.com_rate.X * 180 / M_PI << std::endl;
+            std::cout << t.com.X * 180 / M_PI << "    " << t.com_rate.X * 180 / M_PI << std::endl;
+            std::cout << t.com.Y << "    " << t.com_rate.Y << std::endl;
+            std::cout << t.com.Z << "    " << t.com_rate.Z << std::endl;
         }
-
-        std::cout << controller.wait_get_current_movement ().yaw_rate * 180. / M_PI << std::endl;
-        std::cout << std::chrono::duration_cast<std::chrono::duration<double>> ( controller.get_average_generation_time () ).count () << std::endl;
     }
 
     /* Return success */
