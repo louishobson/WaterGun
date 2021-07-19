@@ -39,10 +39,8 @@ watergun::tracker::tracker ( const vector3d _camera_offset, const XnUInt16 _num_
     check_status ( depth_generator.Create ( context ), "Failed to init depth generator" );
     depth_generator.StartGenerating ();
 
-    /* Wait for new depth data, then timestamps can be set accordingly */
-    depth_generator.WaitAndUpdateData ();
-    system_timestamp = clock::now ();
-    openni_timestamp = depth_generator.GetTimestamp (); 
+    /* Sync clocks */
+    sync_clocks ();
 
     /* Create and start the user generator. */
     check_status ( user_generator.Create ( context ), "Failed to init user generator" );
@@ -164,8 +162,11 @@ watergun::tracker::tracked_user watergun::tracker::project_tracked_user ( const 
  */
 void watergun::tracker::tracker_thread_function ()
 {
+    /* Create a counter to recalibrate the clock */
+    int clock_sync_counter = clock_sync_period;
+
     /* Loop while waiting for user data */
-    while ( context.WaitOneUpdateAll ( user_generator ) == XN_STATUS_OK && !end_threads )
+    while ( user_generator.WaitAndUpdateData () == XN_STATUS_OK && !end_threads )
     {
         /* Lock the mutex */
         std::unique_lock lock { tracked_users_mx };
@@ -174,7 +175,7 @@ void watergun::tracker::tracker_thread_function ()
         clock::time_point frame_timestamp = openni_to_system_timestamp ( depth_generator.GetTimestamp () );
 
         /* Recompute average computation time */
-        average_generation_time = std::chrono::duration_cast<clock::duration> ( average_generation_time * 0.9 + ( clock::now () - frame_timestamp ) * 0.1 );
+        average_generation_time = std::chrono::duration_cast<clock::duration> ( average_generation_time * 0.95 + ( clock::now () - frame_timestamp ) * 0.05 );
 
         /* Get the number of users availible and populate an array with those users' IDs */
         XnUInt16 num_users = num_trackable_users; std::vector<XnUserID> user_ids { num_trackable_users };
@@ -187,7 +188,7 @@ void watergun::tracker::tracker_thread_function ()
             /* Create the new user */
             tracked_user user { user_id, frame_timestamp };
 
-            /* Get the COM for this user in cartesian coordinates. If the Z-coord is 0 (the user is lost), ignore this user. Else change to m/s and add the camera offset. */
+            /* Get the COM for this user in cartesian coordinates. If the Z-coord is 0 (the user is lost), ignore this user. Else change to meters and add the camera offset. */
             user_generator.GetCoM ( user_id, user.com );
             if ( user.com.Z == 0. ) continue; user.com = user.com / 1000. + camera_offset;
 
@@ -198,7 +199,12 @@ void watergun::tracker::tracker_thread_function ()
             auto it = std::find_if ( tracked_users.begin (), tracked_users.end (), [ user_id ] ( const tracked_user& u ) { return u.id == user_id; } );
             
             /* If they were tracked in the last frame, dynamically project the user position back to the time of the last frame to calculate the COM rate. */
-            if ( it != tracked_users.end () ) user.com_rate = rate_of_change ( dynamic_project_tracked_user ( user, it->timestamp ).com - it->com, user.timestamp - it->timestamp );
+            if ( it != tracked_users.end () ) user.com_rate = it->com_rate * 0.5 + rate_of_change ( dynamic_project_tracked_user ( user, it->timestamp ).com - it->com, user.timestamp - it->timestamp ) * 0.5;
+
+            /* Use the minimum COM rate values to reduce noise */
+            if ( std::abs ( user.com_rate.X ) < min_com_rate.X ) user.com_rate.X = 0;
+            if ( std::abs ( user.com_rate.Y ) < min_com_rate.Y ) user.com_rate.Y = 0;
+            if ( std::abs ( user.com_rate.Z ) < min_com_rate.Z ) user.com_rate.Z = 0;
 
             /* Add the tracked user to the new array */
             new_tracked_users.push_back ( user );
@@ -207,7 +213,27 @@ void watergun::tracker::tracker_thread_function ()
         /* Update the tracked users with the new array and notify the condition variable */
         tracked_users = std::move ( new_tracked_users );
         tracked_users_cv.notify_all ();
+
+        /* Possibly sync the clock */
+        if ( --clock_sync_counter == 0 ) { sync_clocks (); clock_sync_counter = clock_sync_period; }
     }
+}
+
+
+
+/** @name  sync_clocks
+ * 
+ * @brief  Synchronize the OpenNI and system timestamps.
+ * @return Nothing.
+ */
+void watergun::tracker::sync_clocks ()
+{
+    /* Wait for new depth data */
+    depth_generator.WaitAndUpdateData ();
+    
+    /* Set the clocks */
+    system_timestamp = clock::now ();
+    openni_timestamp = depth_generator.GetTimestamp ();
 }
 
 

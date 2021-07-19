@@ -92,14 +92,14 @@ struct watergun::vector3d : public XnVector3D
      * 
      * @brief Initialize all components to 0.
      */
-    vector3d () : XnVector3D { 0., 0., 0. } {}
+    constexpr vector3d () : XnVector3D { 0., 0., 0. } {}
 
     /** @name single components constructor
      * 
      * @brief Initialize all components to the same value.
      * @param v: The value to initialize the components to.
      */
-    explicit vector3d ( XnFloat v ) : XnVector3D { v, v, v } {}
+    explicit constexpr vector3d ( XnFloat v ) : XnVector3D { v, v, v } {}
 
     /** @name three component constructor
      * 
@@ -108,27 +108,27 @@ struct watergun::vector3d : public XnVector3D
      * @param y: Y value.
      * @param z: Z value.
      */
-    vector3d ( XnFloat x, XnFloat y, XnFloat z ) : XnVector3D { x, y, z } {}
+    constexpr vector3d ( XnFloat x, XnFloat y, XnFloat z ) : XnVector3D { x, y, z } {}
 
 
     
     /* Default comparison operators */
-    bool operator== ( const vector3d& other ) const { return X == other.X && Y == other.Y && Z == other.Z; }
-    bool operator!= ( const vector3d& other ) const { return X != other.X || Y != other.Y || Z != other.Z; }
+    constexpr bool operator== ( const vector3d& other ) const { return X == other.X && Y == other.Y && Z == other.Z; }
+    constexpr bool operator!= ( const vector3d& other ) const { return X != other.X || Y != other.Y || Z != other.Z; }
 
     /* Simple arithmetic operations */
-    vector3d operator+ ( const vector3d& other ) const { return vector3d { X + other.X, Y + other.Y, Z + other.Z }; }
-    vector3d operator- ( const vector3d& other ) const { return vector3d { X - other.X, Y - other.Y, Z - other.Z }; }
-    vector3d operator* ( const vector3d& other ) const { return vector3d { X * other.X, Y * other.Y, Z * other.Z }; }
-    vector3d operator/ ( const vector3d& other ) const { return vector3d { X / other.X, Y / other.Y, Z / other.Z }; }
-    vector3d& operator+= ( const vector3d& other ) { return * this = * this + other; }
-    vector3d& operator-= ( const vector3d& other ) { return * this = * this - other; }
-    vector3d& operator*= ( const vector3d& other ) { return * this = * this * other; }
-    vector3d& operator/= ( const vector3d& other ) { return * this = * this / other; }
-    vector3d operator* ( XnFloat scalar ) const { return * this * vector3d { scalar }; }
-    vector3d operator/ ( XnFloat scalar ) const { return * this / vector3d { scalar }; }
-    vector3d& operator*= ( XnFloat scalar ) { return * this = * this * scalar; }
-    vector3d& operator/= ( XnFloat scalar ) { return * this = * this / scalar; }
+    constexpr vector3d operator+ ( const vector3d& other ) const { return vector3d { X + other.X, Y + other.Y, Z + other.Z }; }
+    constexpr vector3d operator- ( const vector3d& other ) const { return vector3d { X - other.X, Y - other.Y, Z - other.Z }; }
+    constexpr vector3d operator* ( const vector3d& other ) const { return vector3d { X * other.X, Y * other.Y, Z * other.Z }; }
+    constexpr vector3d operator/ ( const vector3d& other ) const { return vector3d { X / other.X, Y / other.Y, Z / other.Z }; }
+    constexpr vector3d& operator+= ( const vector3d& other ) { return * this = * this + other; }
+    constexpr vector3d& operator-= ( const vector3d& other ) { return * this = * this - other; }
+    constexpr vector3d& operator*= ( const vector3d& other ) { return * this = * this * other; }
+    constexpr vector3d& operator/= ( const vector3d& other ) { return * this = * this / other; }
+    constexpr vector3d operator* ( XnFloat scalar ) const { return * this * vector3d { scalar }; }
+    constexpr vector3d operator/ ( XnFloat scalar ) const { return * this / vector3d { scalar }; }
+    constexpr vector3d& operator*= ( XnFloat scalar ) { return * this = * this * scalar; }
+    constexpr vector3d& operator/= ( XnFloat scalar ) { return * this = * this / scalar; }
 };
 
 
@@ -263,7 +263,7 @@ protected:
      * @return The duration in seconds.
      */
     template<class Rep, class Ratio>
-    static std::chrono::duration<double> duration_to_seconds ( std::chrono::duration<Rep, Ratio> dur )
+    static constexpr std::chrono::duration<double> duration_to_seconds ( std::chrono::duration<Rep, Ratio> dur )
         { return std::chrono::duration_cast<std::chrono::duration<double>> ( dur ); }
 
     /** @name  rate_of_change
@@ -274,7 +274,7 @@ protected:
      * @return Rate of change as a double.
      */
     template<class T, class Rep, class Ratio>
-    static T rate_of_change ( T delta_v, std::chrono::duration<Rep, Ratio> delta_t ) 
+    static constexpr T rate_of_change ( T delta_v, std::chrono::duration<Rep, Ratio> delta_t ) 
         { return delta_v / duration_to_seconds ( delta_t ).count (); }
 
 
@@ -294,6 +294,14 @@ private:
     /* System and OpenNI timestamps at the start of the program */
     clock::time_point system_timestamp;
     XnUInt64 openni_timestamp;
+
+
+
+    /* The minimum rate of change of COM for it to not be considered 0 */
+    static constexpr vector3d min_com_rate { M_PI / 240. /* 0.75 degrees */, 0.100 /* 10 cm */, 0.050 /* 5 cm */ };
+
+    /* The clock sync period in frames */
+    static constexpr int clock_sync_period = 5 * 30;
 
 
 
@@ -325,6 +333,13 @@ private:
     void tracker_thread_function ();
 
 
+
+    /** @name  sync_clocks
+     * 
+     * @brief  Synchronize the OpenNI and system timestamps.
+     * @return Nothing.
+     */
+    void sync_clocks ();
 
     /** @name  openni_to_system_timestamp
      * 
