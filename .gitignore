@@ -36,3 +36,7 @@
 
 # Test Binary
 test
+
+# SVGs and Backup Freecad
+*.svg
+*.FCStd1
