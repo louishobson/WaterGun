@@ -49,6 +49,7 @@ watergun::tracker::tracker ( const vector3d _camera_offset, const XnUInt16 _num_
     /* Set the protected camera properties */
     depth_generator.GetFieldOfView ( camera_fov );
     camera_depth = depth_generator.GetDeviceMaxDepth () / 1000.;
+    depth_generator.GetMapOutputMode ( camera_output_mode );
 
     /* Start the tracking thread */
     tracker_thread = std::thread { &tracker::tracker_thread_function, this };

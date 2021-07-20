@@ -35,10 +35,6 @@
 
 
 
-#include <iostream>
-
-
-
 /* MACRO DEFINITIONS */
 
 /** Maximum error message length
@@ -237,6 +233,9 @@ protected:
     /* The FOV and maximum depth of the camera */
     XnFieldOfView camera_fov;
     XnFloat camera_depth;
+
+    /* The output mode of the camera */
+    XnMapOutputMode camera_output_mode;
 
     /* The offset of the camera from the origin */
     vector3d camera_offset;
