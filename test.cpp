@@ -32,7 +32,7 @@ int main ()
     std::signal ( SIGINT, [] ( int signum ) { quit = true; } );
 
     /* Create the tracker */
-    watergun::tracker controller {};
+    watergun::aimer controller { 4, 0.0, M_PI / 2. };
 
     /* Loop until signalled to quit */
     while ( !quit )
@@ -44,12 +44,16 @@ int main ()
         if ( tracked_users.size () ) 
         {
             auto t = tracked_users.front ();
-            //auto aim = controller.calculate_aim ( t );
+            auto aim = controller.calculate_aim ( t );
+            std::cout << aim.yaw * 180 / M_PI << "    " << aim.pitch * 180 / M_PI << std::endl;
             //std::cout << t.com.X * 180 / M_PI << "    " << std::atan ( t.com.Y / t.com.Z ) * 180 / M_PI << "    " << aim.yaw * 180 / M_PI << "    " << aim.pitch * 180 / M_PI << std::endl;
-            std::cout << t.com.X * 180 / M_PI << "    " << t.com_rate.X * 180 / M_PI << std::endl;
-            std::cout << t.com.Y << "    " << t.com_rate.Y << std::endl;
-            std::cout << t.com.Z << "    " << t.com_rate.Z << std::endl;
+            //std::cout << t.com.X * 180 / M_PI << "    " << t.com_rate.X * 180 / M_PI << std::endl;
+            //std::cout << t.com.Y << "    " << t.com_rate.Y << std::endl;
+            //std::cout << t.com.Z << "    " << t.com_rate.Z << std::endl;
         }
+
+        /* Print time taken to compute user posisions */
+        std::cout << std::chrono::duration_cast<std::chrono::duration<double>> ( controller.get_average_generation_time () ).count () << std::endl;
     }
 
     /* Return success */
