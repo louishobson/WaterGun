@@ -82,18 +82,14 @@ public:
      * 
      * @brief Sets up tracker, then begins processing aim data.
      * @param _water_rate: The velocity of the water leaving the watergun (depends on psi etc).
+     * @param _air_resistance: Horizontal deceleration of the water, to model small amounts of air resistance.
      * @param _max_yaw_velocity: Maximum yaw angular velocity in radians per second.
-     * @param _aim_period: The period of time in seconds with which to spire to be correctly aimed within.
+     * @param _aim_period: The period of time in seconds with which to aspire to be correctly aimed within. Defaults to the length of a frame, if set to 0 duration.
      * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
      * @param _num_trackable_users: The max number of trackable users.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    aimer ( XnFloat _water_rate, XnFloat _max_yaw_velocity, clock::duration _aim_period, vector3d _camera_offset = vector3d {}, XnUInt16 _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS )
-        : tracker { _camera_offset, _num_trackable_users }
-        , water_rate { _water_rate }
-        , max_yaw_velocity { _max_yaw_velocity }
-        , aim_period { _aim_period }
-    {}
+    aimer ( XnFloat _water_rate, XnFloat _air_resistance, XnFloat _max_yaw_velocity, clock::duration _aim_period = clock::duration { 0 }, vector3d _camera_offset = vector3d {}, XnUInt16 _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS );
 
     /** @name destructor
      * 
@@ -135,6 +131,9 @@ protected:
 
     /* The water velocity */
     XnFloat water_rate;
+
+    /* Horizontal deceleration of water */
+    XnFloat air_resistance;
 
     /* Maximum yaw angular velocity in radians per second */
     XnFloat max_yaw_velocity;

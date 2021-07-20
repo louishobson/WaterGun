@@ -21,6 +21,30 @@
 
 
 
+/** @name constructor
+ * 
+ * @brief Sets up tracker, then begins processing aim data.
+ * @param _water_rate: The velocity of the water leaving the watergun (depends on psi etc).
+ * @param _air_resistance: Horizontal deceleration of the water, to model small amounts of air resistance.
+ * @param _max_yaw_velocity: Maximum yaw angular velocity in radians per second.
+ * @param _aim_period: The period of time in seconds with which to aspire to be correctly aimed within. Defaults to the length of a frame.
+ * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
+ * @param _num_trackable_users: The max number of trackable users.
+ * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
+ */
+watergun::aimer::aimer ( const XnFloat _water_rate, const XnFloat _air_resistance, const XnFloat _max_yaw_velocity, const clock::duration _aim_period, const vector3d _camera_offset, const XnUInt16 _num_trackable_users )
+    : tracker { _camera_offset, _num_trackable_users }
+    , water_rate { _water_rate }
+    , air_resistance { _air_resistance }
+    , max_yaw_velocity { _max_yaw_velocity }
+    , aim_period { _aim_period }
+{
+    /* If the aim period is 0, update it to the length of a frame */
+    if ( aim_period == clock::duration { 0 } ) aim_period = std::chrono::milliseconds { 1000 } / camera_output_mode.nFPS; 
+}
+
+
+
 /** @name  calculate_aim
  * 
  * @brief  From a tracked user, find the yaw and pitch the watergun must shoot to hit the user for the given water velocity.
@@ -32,10 +56,10 @@ watergun::aimer::gun_position watergun::aimer::calculate_aim ( const tracked_use
     /* Solve the time quartic to test whether it is possible to hit the user */
     auto roots = solve_quartic
     (
-        ( 24.059025 ),
-        ( 9.81 * user.com_rate.Y ),
-        ( 9.81 * user.com.Y ) + ( user.com_rate.Y * user.com_rate.Y ) + ( user.com_rate.Z * user.com_rate.Z ) - ( water_rate * water_rate ),
-        ( 2. * user.com.Y * user.com_rate.Y ) + ( 2. * user.com.Z * user.com_rate.Z ),
+        ( air_resistance * air_resistance * 0.25 ) + ( 9.81 * 9.81 * 0.25 ),
+        ( air_resistance * user.com_rate.Z ) + ( 9.81 * user.com_rate.Y ),
+        ( air_resistance * user.com.Z ) + ( user.com_rate.Z * user.com_rate.Z ) + ( 9.81 * user.com.Y ) + ( user.com_rate.Y * user.com_rate.Y ) - ( water_rate * water_rate ),
+        ( user.com.Z * user.com_rate.Z * 2. ) + ( user.com.Y * user.com_rate.Y * 2. ),
         ( user.com.Z * user.com.Z ) + ( user.com.Y * user.com.Y )
     );
 
