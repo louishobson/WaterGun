@@ -85,7 +85,7 @@ watergun::controller::~controller ()
 std::list<watergun::controller::single_movement> watergun::controller::get_movement_plan () const
 {
     /* Aquire the lock, then return the list */
-    std::unique_lock lock { movement_mx };
+    std::unique_lock<std::mutex> lock { movement_mx };
     return movement_plan;
 }
 
@@ -99,7 +99,7 @@ std::list<watergun::controller::single_movement> watergun::controller::get_movem
 std::list<watergun::controller::single_movement> watergun::controller::wait_get_movement_plan () const
 {
     /* Aquire the lock, wait on the condition variable, then return the list */
-    std::unique_lock lock { movement_mx };
+    std::unique_lock<std::mutex> lock { movement_mx };
     movement_cv.wait ( lock );
     return movement_plan;
 }
@@ -114,7 +114,7 @@ std::list<watergun::controller::single_movement> watergun::controller::wait_get_
 watergun::controller::single_movement watergun::controller::get_current_movement () const
 {
     /* Lock the mutex */
-    std::unique_lock lock { movement_mx };
+    std::unique_lock<std::mutex> lock { movement_mx };
 
     /* While the current movement has a large timestamp, wait for it to update */
     while ( current_movement->timestamp == large_time_point ) { lock.unlock (); std::this_thread::sleep_for ( servo_period ); lock.lock (); }
@@ -133,7 +133,7 @@ watergun::controller::single_movement watergun::controller::get_current_movement
 watergun::controller::single_movement watergun::controller::wait_get_current_movement () const
 {
     /* Lock the mutex */
-    std::unique_lock lock { movement_mx };
+    std::unique_lock<std::mutex> lock { movement_mx };
 
     /* Wait on the condition variable */
     movement_cv.wait ( lock );
@@ -160,7 +160,7 @@ watergun::controller::tracked_user watergun::controller::dynamic_project_tracked
     const clock::time_point early_timestamp = std::min ( user.timestamp, timestamp ), late_timestamp = std::max ( user.timestamp, timestamp );
 
     /* Lock the mutex */
-    std::unique_lock lock { movement_mx };
+    std::unique_lock<std::mutex> lock { movement_mx };
 
     /* Iterate backwards through the movement plan to find a movement that started before the early timestamp */
     auto movement_it = current_movement; while ( movement_it->timestamp > early_timestamp ) --movement_it;
@@ -208,7 +208,7 @@ void watergun::controller::movement_planner_thread_function ()
         if ( target.com == vector3d {} ) { movement_cv.notify_all (); continue; }
 
         /* Lock the mutex */
-        std::unique_lock lock { movement_mx };
+        std::unique_lock<std::mutex> lock { movement_mx };
 
         /* Erase movements not yet started */
         movement_plan.erase ( std::next ( current_movement ), movement_plan.end () );
@@ -237,7 +237,7 @@ void watergun::controller::movement_planner_thread_function ()
 void watergun::controller::servo_controller_thread_function ()
 {
     /* Create a permanent mutex lock, while not waiting */
-    std::unique_lock lock { movement_mx };
+    std::unique_lock<std::mutex> lock { movement_mx };
 
     /* Loop while not signalled to end */
     while ( !end_threads )

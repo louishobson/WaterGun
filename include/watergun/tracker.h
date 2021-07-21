@@ -299,7 +299,7 @@ private:
     static constexpr vector3d min_com_rate { M_PI / 240. /* 0.75 degrees */, 0.100 /* 10 cm */, 0.050 /* 5 cm */ };
 
     /* The clock sync period in frames */
-    static constexpr int clock_sync_period = 2 * 30;
+    static constexpr int clock_sync_period { 2 * 30 };
 
 
 
@@ -319,7 +319,7 @@ private:
     std::thread tracker_thread;
 
     /* Atomic bool telling the tracker thread when to quit */
-    std::atomic_bool end_threads = false;
+    std::atomic_bool end_threads { false };
 
 
 

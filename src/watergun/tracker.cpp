@@ -89,7 +89,7 @@ watergun::tracker::~tracker ()
 std::vector<watergun::tracker::tracked_user> watergun::tracker::get_tracked_users () const
 {
     /* Lock the mutex, copy the tracked users, then unlock */
-    std::unique_lock lock { tracked_users_mx };
+    std::unique_lock<std::mutex> lock { tracked_users_mx };
     auto tracked_users_copy = tracked_users;
     lock.unlock ();
 
@@ -108,7 +108,7 @@ std::vector<watergun::tracker::tracked_user> watergun::tracker::get_tracked_user
 std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_get_tracked_users () const
 {
     /* Lock the mutex, wait on the condition variable, copy the tracked users, then unlock */
-    std::unique_lock lock { tracked_users_mx };
+    std::unique_lock<std::mutex> lock { tracked_users_mx };
     tracked_users_cv.wait ( lock );
     auto tracked_users_copy = tracked_users;
     lock.unlock ();
@@ -130,7 +130,7 @@ std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_get_tracked
 watergun::tracker::clock::duration watergun::tracker::get_average_generation_time () const
 {
     /* Lock the mutex and return the value */
-    std::unique_lock lock { tracked_users_mx };
+    std::unique_lock<std::mutex> lock { tracked_users_mx };
     return average_generation_time;
 }
 
@@ -170,7 +170,7 @@ void watergun::tracker::tracker_thread_function ()
     while ( user_generator.WaitAndUpdateData () == XN_STATUS_OK && !end_threads )
     {
         /* Lock the mutex */
-        std::unique_lock lock { tracked_users_mx };
+        std::unique_lock<std::mutex> lock { tracked_users_mx };
 
         /* Get the timestamp that the frame became availible */
         clock::time_point frame_timestamp = openni_to_system_timestamp ( depth_generator.GetTimestamp () );
