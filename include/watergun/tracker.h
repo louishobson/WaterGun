@@ -87,14 +87,14 @@ struct watergun::vector3d : public XnVector3D
      * 
      * @brief Initialize all components to 0.
      */
-    constexpr vector3d () : XnVector3D { 0., 0., 0. } {}
+    constexpr vector3d () noexcept : XnVector3D { 0., 0., 0. } {}
 
     /** @name single components constructor
      * 
      * @brief Initialize all components to the same value.
      * @param v: The value to initialize the components to.
      */
-    explicit constexpr vector3d ( XnFloat v ) : XnVector3D { v, v, v } {}
+    explicit constexpr vector3d ( XnFloat v ) noexcept : XnVector3D { v, v, v } {}
 
     /** @name three component constructor
      * 
@@ -103,27 +103,27 @@ struct watergun::vector3d : public XnVector3D
      * @param y: Y value.
      * @param z: Z value.
      */
-    constexpr vector3d ( XnFloat x, XnFloat y, XnFloat z ) : XnVector3D { x, y, z } {}
+    constexpr vector3d ( XnFloat x, XnFloat y, XnFloat z ) noexcept : XnVector3D { x, y, z } {}
 
 
     
     /* Default comparison operators */
-    constexpr bool operator== ( const vector3d& other ) const { return X == other.X && Y == other.Y && Z == other.Z; }
-    constexpr bool operator!= ( const vector3d& other ) const { return X != other.X || Y != other.Y || Z != other.Z; }
+    constexpr bool operator== ( const vector3d& other ) const noexcept { return X == other.X && Y == other.Y && Z == other.Z; }
+    constexpr bool operator!= ( const vector3d& other ) const noexcept { return X != other.X || Y != other.Y || Z != other.Z; }
 
     /* Simple arithmetic operations */
-    constexpr vector3d operator+ ( const vector3d& other ) const { return vector3d { X + other.X, Y + other.Y, Z + other.Z }; }
-    constexpr vector3d operator- ( const vector3d& other ) const { return vector3d { X - other.X, Y - other.Y, Z - other.Z }; }
-    constexpr vector3d operator* ( const vector3d& other ) const { return vector3d { X * other.X, Y * other.Y, Z * other.Z }; }
-    constexpr vector3d operator/ ( const vector3d& other ) const { return vector3d { X / other.X, Y / other.Y, Z / other.Z }; }
-    constexpr vector3d& operator+= ( const vector3d& other ) { return * this = * this + other; }
-    constexpr vector3d& operator-= ( const vector3d& other ) { return * this = * this - other; }
-    constexpr vector3d& operator*= ( const vector3d& other ) { return * this = * this * other; }
-    constexpr vector3d& operator/= ( const vector3d& other ) { return * this = * this / other; }
-    constexpr vector3d operator* ( XnFloat scalar ) const { return * this * vector3d { scalar }; }
-    constexpr vector3d operator/ ( XnFloat scalar ) const { return * this / vector3d { scalar }; }
-    constexpr vector3d& operator*= ( XnFloat scalar ) { return * this = * this * scalar; }
-    constexpr vector3d& operator/= ( XnFloat scalar ) { return * this = * this / scalar; }
+    constexpr vector3d operator+ ( const vector3d& other ) const noexcept { return vector3d { X + other.X, Y + other.Y, Z + other.Z }; }
+    constexpr vector3d operator- ( const vector3d& other ) const noexcept { return vector3d { X - other.X, Y - other.Y, Z - other.Z }; }
+    constexpr vector3d operator* ( const vector3d& other ) const noexcept { return vector3d { X * other.X, Y * other.Y, Z * other.Z }; }
+    constexpr vector3d operator/ ( const vector3d& other ) const noexcept { return vector3d { X / other.X, Y / other.Y, Z / other.Z }; }
+    constexpr vector3d& operator+= ( const vector3d& other ) noexcept { return * this = * this + other; }
+    constexpr vector3d& operator-= ( const vector3d& other ) noexcept { return * this = * this - other; }
+    constexpr vector3d& operator*= ( const vector3d& other ) noexcept { return * this = * this * other; }
+    constexpr vector3d& operator/= ( const vector3d& other ) noexcept { return * this = * this / other; }
+    constexpr vector3d operator* ( XnFloat scalar ) const noexcept { return * this * vector3d { scalar }; }
+    constexpr vector3d operator/ ( XnFloat scalar ) const noexcept { return * this / vector3d { scalar }; }
+    constexpr vector3d& operator*= ( XnFloat scalar ) noexcept { return * this = * this * scalar; }
+    constexpr vector3d& operator/= ( XnFloat scalar ) noexcept { return * this = * this / scalar; }
 };
 
 
@@ -261,7 +261,7 @@ protected:
      * @return The duration in seconds.
      */
     template<class Rep, class Ratio>
-    static constexpr std::chrono::duration<double> duration_to_seconds ( std::chrono::duration<Rep, Ratio> dur )
+    static constexpr std::chrono::duration<double> duration_to_seconds ( std::chrono::duration<Rep, Ratio> dur ) noexcept
         { return std::chrono::duration_cast<std::chrono::duration<double>> ( dur ); }
 
     /** @name  rate_of_change
@@ -272,7 +272,7 @@ protected:
      * @return Rate of change as a double.
      */
     template<class T, class Rep, class Ratio>
-    static constexpr T rate_of_change ( T delta_v, std::chrono::duration<Rep, Ratio> delta_t ) 
+    static constexpr T rate_of_change ( T delta_v, std::chrono::duration<Rep, Ratio> delta_t ) noexcept
         { return delta_v / duration_to_seconds ( delta_t ).count (); }
 
 
@@ -345,7 +345,7 @@ private:
      * @param  timestamp: The OpenNI timestamp.
      * @return A system timestamp.
      */
-    clock::time_point openni_to_system_timestamp ( XnUInt64 timestamp ) const { return system_timestamp + std::chrono::microseconds { timestamp - openni_timestamp }; }
+    clock::time_point openni_to_system_timestamp ( XnUInt64 timestamp ) const noexcept { return system_timestamp + std::chrono::microseconds { timestamp - openni_timestamp }; }
 
 
 

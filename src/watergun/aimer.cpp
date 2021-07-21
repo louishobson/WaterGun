@@ -140,10 +140,10 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
         if ( std::isnan ( aim.yaw ) ) break; aim.yaw -= delta_yaw;
 
         /* Calculate the yaw rate */
-        XnFloat yaw_rate = std::clamp ( rate_of_change ( aim.yaw, aim_period ), -max_yaw_velocity, +max_yaw_velocity );
+        XnFloat yaw_rate = clamp ( rate_of_change ( aim.yaw, aim_period ), -max_yaw_velocity, +max_yaw_velocity );
 
         /* Add the single movement */
-        future_movements.emplace_back ( aim_period, large_time_point, yaw_rate, aim.pitch );
+        future_movements.push_back ( single_movement { aim_period, large_time_point, yaw_rate, aim.pitch } );
 
         /* Add to the delta yaw */
         delta_yaw += yaw_rate * duration_to_seconds ( aim_period ).count ();
@@ -163,7 +163,7 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
  * @param  c4: The last coeficient (x^0).
  * @return Array of four (possibly complex) solutions.
  */
-std::array<std::complex<double>, 4> watergun::aimer::solve_quartic ( const std::complex<double>& c0, const std::complex<double>& c1, const std::complex<double>& c2, const std::complex<double>& c3, const std::complex<double>& c4 )
+std::array<std::complex<double>, 4> watergun::aimer::solve_quartic ( const std::complex<double>& c0, const std::complex<double>& c1, const std::complex<double>& c2, const std::complex<double>& c3, const std::complex<double>& c4 ) noexcept
 {
     const std::complex<double> a = c0;
     const std::complex<double> b = c1 / a;

@@ -143,6 +143,18 @@ protected:
 
 
 
+    /** @name  clamp
+     * 
+     * @brief  Clamps a number type between an upper and lower bound.
+     * @param  value: The value to clamp.
+     * @param  lower: The lower bound.
+     * @param  upper: The upper bound.
+     * @return A reference to value, lower or upper.
+     */
+    template<class T> static const T& clamp ( const T& value, const T& lower, const T& upper ) noexcept { return std::max ( lower, std::min ( value, upper ) ); }
+
+
+
 private:
 
     /** @name  solve_quartic
@@ -153,7 +165,7 @@ private:
      * @param  c4: The last coeficient (x^0).
      * @return Array of four (possibly complex) solutions.
      */
-    static std::array<std::complex<double>, 4> solve_quartic ( const std::complex<double>& c0, const std::complex<double>& c1, const std::complex<double>& c2, const std::complex<double>& c3, const std::complex<double>& c4 );
+    static std::array<std::complex<double>, 4> solve_quartic ( const std::complex<double>& c0, const std::complex<double>& c1, const std::complex<double>& c2, const std::complex<double>& c3, const std::complex<double>& c4 ) noexcept;
 
 };
 
