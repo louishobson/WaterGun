@@ -245,12 +245,12 @@ protected:
 
 
     /* An arbitrarily large duration and duration */
-    static constexpr clock::duration   large_duration   = std::chrono::hours { 24 };
-    const            clock::time_point large_time_point = clock::now () + large_duration; 
+    static constexpr clock::duration   large_duration   { std::chrono::hours { 24 } };
+    const            clock::time_point large_time_point { clock::now () + large_duration };
 
     /* Zero duration and time point */
-    static constexpr clock::duration   zero_duration   = clock::duration::zero ();
-    static constexpr clock::time_point zero_time_point = clock::time_point {};
+    static constexpr clock::duration   zero_duration   { clock::duration::zero () };
+    static constexpr clock::time_point zero_time_point { clock::time_point {} };
 
 
 
