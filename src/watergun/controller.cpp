@@ -43,8 +43,8 @@ watergun::controller::controller ( const clock::duration _servo_period, const Xn
     /* Push a non-movement from the beginning of all time to the movement plan. The duration will be updated on the movement planner thread's start.
      * Also push a search movement for the rest of all time to the movement plan. It's start point will also be updated on the same thread's start.
      */
-    movement_plan.emplace_back ( zero_duration,  zero_time_point,  0., 0. );
-    movement_plan.emplace_back ( large_duration, large_time_point, search_yaw_velocity, 0. );
+    movement_plan.push_back ( single_movement { zero_duration,  zero_time_point,  0., 0. } );
+    movement_plan.push_back ( single_movement { large_duration, large_time_point, search_yaw_velocity, 0. } );
 
     /* Set the current movement */
     current_movement = std::next ( movement_plan.begin () );
@@ -217,7 +217,7 @@ void watergun::controller::movement_planner_thread_function ()
         movement_plan.splice ( movement_plan.end (), calculate_future_movements ( target, num_future_movements ) );
 
         /* Add a search movement to the end of the plan */
-        movement_plan.emplace_back ( large_duration, large_time_point, std::copysign ( search_yaw_velocity, movement_plan.back ().yaw_rate ), 0. );
+        movement_plan.push_back ( single_movement { large_duration, large_time_point, std::copysign ( search_yaw_velocity, movement_plan.back ().yaw_rate ), 0. } );
 
         /* Increment the current movement */
         std::advance ( current_movement, 1 );
