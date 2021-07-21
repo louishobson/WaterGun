@@ -148,7 +148,7 @@ private:
     std::thread servo_controller_thread;
 
     /* An atomic boolean telling threads when to end */
-    std::atomic_bool end_threads = false;
+    std::atomic_bool end_threads { false };
 
 
 
