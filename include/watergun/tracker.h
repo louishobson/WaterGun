@@ -245,12 +245,12 @@ protected:
 
 
     /* An arbitrarily large duration and duration */
-    static constexpr clock::duration   large_duration   { std::chrono::hours { 24 } };
-    const            clock::time_point large_time_point { clock::now () + large_duration };
+    static const clock::duration   large_duration;
+    static const clock::time_point large_time_point;
 
     /* Zero duration and time point */
-    static constexpr clock::duration   zero_duration   { clock::duration::zero () };
-    static constexpr clock::time_point zero_time_point { clock::time_point {} };
+    static const clock::duration   zero_duration;
+    static const clock::time_point zero_time_point;
 
 
 
@@ -296,10 +296,10 @@ private:
 
 
     /* The minimum rate of change of COM for it to not be considered 0 */
-    static constexpr vector3d min_com_rate { M_PI / 240. /* 0.75 degrees */, 0.100 /* 10 cm */, 0.050 /* 5 cm */ };
+    const vector3d min_com_rate { M_PI / 240. /* 0.75 degrees */, 0.100 /* 10 cm */, 0.050 /* 5 cm */ };
 
     /* The clock sync period in frames */
-    static constexpr int clock_sync_period { 2 * 30 };
+    const int clock_sync_period { 2 * 30 };
 
 
 

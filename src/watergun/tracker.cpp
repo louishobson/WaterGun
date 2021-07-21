@@ -17,6 +17,18 @@
 
 
 
+/* TRACKER STATIC MEMBER DEFINITION */
+
+/* An arbitrarily large duration and duration */
+const watergun::tracker::clock::duration   watergun::tracker::large_duration   { std::chrono::hours { 24 } };
+const watergun::tracker::clock::time_point watergun::tracker::large_time_point { clock::now () + large_duration };
+
+/* Zero duration and time point */
+const watergun::tracker::clock::duration   watergun::tracker::zero_duration   { clock::duration::zero () };
+const watergun::tracker::clock::time_point watergun::tracker::zero_time_point { clock::time_point {} };
+
+
+
 /* TRACKER IMPLEMENTATION */
 
 
