@@ -20,7 +20,7 @@
 
 
 /* Global quit boolean */
-std::atomic_bool quit = false;
+std::atomic_bool quit { false };
 
 
 
