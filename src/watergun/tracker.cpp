@@ -37,12 +37,10 @@ const watergun::tracker::clock::time_point watergun::tracker::zero_time_point { 
  * 
  * @brief Sets up the context and configures OpenNI/NITE for human recognition.
  * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
- * @param _num_trackable_users: The max number of trackable users.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
-watergun::tracker::tracker ( const vector3d _camera_offset, const int _num_trackable_users )
+watergun::tracker::tracker ( const vector3d _camera_offset )
     : camera_offset { _camera_offset }
-    , num_trackable_users { _num_trackable_users }
 {
     /* Initialize OpenNI and NiTE */
     check_status ( openni::OpenNI::initialize (), "Failed to initialize OpenNI" );

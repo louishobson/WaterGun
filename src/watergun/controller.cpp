@@ -31,11 +31,10 @@
  * @param _max_yaw_velocity: Maximum yaw angular velocity in radians per second.
  * @param _aim_period: The period of time in seconds with which to spire to be correctly aimed within.
  * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
- * @param _num_trackable_users: The max number of trackable users.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
-watergun::controller::controller ( const clock::duration _servo_period, const float _search_yaw_velocity, const float _water_rate, const float _air_resistance, const float _max_yaw_velocity, const clock::duration _aim_period, const vector3d _camera_offset, const int _num_trackable_users )
-    : aimer ( _water_rate, _air_resistance, _max_yaw_velocity, _aim_period, _camera_offset, _num_trackable_users )
+watergun::controller::controller ( const clock::duration _servo_period, const float _search_yaw_velocity, const float _water_rate, const float _air_resistance, const float _max_yaw_velocity, const clock::duration _aim_period, const vector3d _camera_offset )
+    : aimer ( _water_rate, _air_resistance, _max_yaw_velocity, _aim_period, _camera_offset )
     , servo_period { _servo_period }
     , search_yaw_velocity { _search_yaw_velocity }
     , num_future_movements { static_cast<int> ( std::chrono::seconds { 1 } / _aim_period ) }

@@ -33,26 +33,6 @@
 
 
 
-/* MACRO DEFINITIONS */
-
-/** Maximum error message length
- * 
- * The maximum length of an error message from an EnumerationErrors class.
- */
-#ifndef WATERGUN_MAX_ERROR_LENGTH
-    #define WATERGUN_MAX_ERROR_LENGTH 1024
-#endif
-
-/** Maximum number of users
- * 
- * The maximum number of users the tracker can track.
- */
-#ifndef WATERGUN_MAX_TRACKABLE_USERS
-    #define WATERGUN_MAX_TRACKABLE_USERS 6
-#endif
-
-
-
 /* DECLARATIONS */
 
 namespace watergun
@@ -172,10 +152,9 @@ public:
      * 
      * @brief Sets up the context and configures OpenNI/NITE for human recognition.
      * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
-     * @param _num_trackable_users: The max number of trackable users.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    explicit tracker ( vector3d _camera_offset = vector3d {}, int _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS );
+    explicit tracker ( vector3d _camera_offset = vector3d {} );
 
     /** @name destructor
      * 
@@ -240,9 +219,6 @@ protected:
 
     /* The offset of the camera from the origin */
     vector3d camera_offset;
-
-    /* The max number of trackabke users */
-    int num_trackable_users;
 
 
 
