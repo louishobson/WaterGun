@@ -34,7 +34,7 @@
  * @param _num_trackable_users: The max number of trackable users.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
-watergun::controller::controller ( const clock::duration _servo_period, const XnFloat _search_yaw_velocity, const XnFloat _water_rate, const XnFloat _air_resistance, const XnFloat _max_yaw_velocity, const clock::duration _aim_period, const vector3d _camera_offset, const XnUInt16 _num_trackable_users )
+watergun::controller::controller ( const clock::duration _servo_period, const float _search_yaw_velocity, const float _water_rate, const float _air_resistance, const float _max_yaw_velocity, const clock::duration _aim_period, const vector3d _camera_offset, const int _num_trackable_users )
     : aimer ( _water_rate, _air_resistance, _max_yaw_velocity, _aim_period, _camera_offset, _num_trackable_users )
     , servo_period { _servo_period }
     , search_yaw_velocity { _search_yaw_velocity }
@@ -166,7 +166,7 @@ watergun::controller::tracked_user watergun::controller::dynamic_project_tracked
     auto movement_it = current_movement; while ( movement_it->timestamp > early_timestamp ) --movement_it;
 
     /* Get the timestamp of the current movement. Iterate over the movements, adding up the change in yaw, until the late timestamp is met. */
-    XnFloat delta_yaw = 0.;
+    float delta_yaw = 0.;
     for ( clock::time_point movement_timestamp = movement_it->timestamp; movement_timestamp < late_timestamp; movement_timestamp += movement_it++->duration )
     {
         /* Get the duration within the early and late times, that this movement occured */
@@ -185,7 +185,7 @@ watergun::controller::tracked_user watergun::controller::dynamic_project_tracked
     tracked_user proj_user = project_tracked_user ( user, timestamp );
 
     /* Make up for the delta yaw */
-    if ( timestamp == late_timestamp ) proj_user.com.X -= delta_yaw; else proj_user.com.X += delta_yaw;
+    if ( timestamp == late_timestamp ) proj_user.com.x -= delta_yaw; else proj_user.com.x += delta_yaw;
 
     /* Return the projected user */
     return proj_user;

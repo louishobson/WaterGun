@@ -61,7 +61,7 @@ public:
      * @param _num_trackable_users: The max number of trackable users.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    controller ( clock::duration _servo_period, XnFloat _search_yaw_velocity, XnFloat _water_rate, XnFloat _air_resistance, XnFloat _max_yaw_velocity, clock::duration _aim_period, vector3d _camera_offset = vector3d {}, XnUInt16 _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS );
+    controller ( clock::duration _servo_period, float _search_yaw_velocity, float _water_rate, float _air_resistance, float _max_yaw_velocity, clock::duration _aim_period, vector3d _camera_offset = vector3d {}, int _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS );
 
     /** @name destructor
      * 
@@ -120,7 +120,7 @@ protected:
     clock::duration servo_period;
 
     /* The angular velocity when searching for users */
-    XnFloat search_yaw_velocity;
+    float search_yaw_velocity;
 
 
 

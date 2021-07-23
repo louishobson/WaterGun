@@ -32,7 +32,7 @@
  * @param _num_trackable_users: The max number of trackable users.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
-watergun::aimer::aimer ( const XnFloat _water_rate, const XnFloat _air_resistance, const XnFloat _max_yaw_velocity, const clock::duration _aim_period, const vector3d _camera_offset, const XnUInt16 _num_trackable_users )
+watergun::aimer::aimer ( const float _water_rate, const float _air_resistance, const float _max_yaw_velocity, const clock::duration _aim_period, const vector3d _camera_offset, const int _num_trackable_users )
     : tracker { _camera_offset, _num_trackable_users }
     , water_rate { _water_rate }
     , air_resistance { _air_resistance }
@@ -40,7 +40,7 @@ watergun::aimer::aimer ( const XnFloat _water_rate, const XnFloat _air_resistanc
     , aim_period { _aim_period }
 {
     /* If the aim period is 0, update it to the length of a frame */
-    if ( aim_period == clock::duration { 0 } ) aim_period = std::chrono::milliseconds { 1000 } / camera_output_mode.nFPS; 
+    if ( aim_period == clock::duration { 0 } ) aim_period = std::chrono::milliseconds { 1000 } / camera_output_mode.getFps (); 
 }
 
 
@@ -57,21 +57,21 @@ watergun::aimer::gun_position watergun::aimer::calculate_aim ( const tracked_use
     auto roots = solve_quartic
     (
         ( air_resistance * air_resistance * 0.25 ) + ( 9.81 * 9.81 * 0.25 ),
-        ( air_resistance * user.com_rate.Z ) + ( 9.81 * user.com_rate.Y ),
-        ( air_resistance * user.com.Z ) + ( user.com_rate.Z * user.com_rate.Z ) + ( 9.81 * user.com.Y ) + ( user.com_rate.Y * user.com_rate.Y ) - ( water_rate * water_rate ),
-        ( user.com.Z * user.com_rate.Z * 2. ) + ( user.com.Y * user.com_rate.Y * 2. ),
-        ( user.com.Z * user.com.Z ) + ( user.com.Y * user.com.Y )
+        ( air_resistance * user.com_rate.z ) + ( 9.81 * user.com_rate.y ),
+        ( air_resistance * user.com.z ) + ( user.com_rate.z * user.com_rate.z ) + ( 9.81 * user.com.y ) + ( user.com_rate.y * user.com_rate.y ) - ( water_rate * water_rate ),
+        ( user.com.z * user.com_rate.z * 2. ) + ( user.com.y * user.com_rate.y * 2. ),
+        ( user.com.z * user.com.z ) + ( user.com.y * user.com.y )
     );
 
     /* Look for two real positive roots */
-    XnFloat time = INFINITY;
+    float time = INFINITY;
     for ( const auto& root : roots ) if ( std::abs ( root.imag () ) < 1e-6 && root.real () > 0. && root.real () < time ) time = root.real ();
 
     /* If time is still infinity, there are no solutions, so return NaN */
     if ( time == INFINITY ) return { std::nanf ( "" ), std::nanf ( "" ) };
 
     /* Else produce the angles */
-    return { user.com.X + user.com_rate.X * time, std::asin ( ( user.com.Y + user.com_rate.Y * time + 4.905f * time * time ) / ( water_rate * time ) ) };
+    return { user.com.x + user.com_rate.x * time, std::asin ( ( user.com.y + user.com_rate.y * time + 4.905f * time * time ) / ( water_rate * time ) ) };
 }
 
 
@@ -100,7 +100,7 @@ watergun::aimer::tracked_user watergun::aimer::choose_target ( const std::vector
         gun_position aim = calculate_aim ( user ); if ( std::isnan ( aim.yaw ) ) continue;
 
         /* Get their score */
-        double score = ( std::abs ( aim.yaw ) / ( camera_fov.fHFOV / 2. ) ) * -2. + 1. + ( user.com.Z / camera_depth ) * -2. + 1. + ( user.com_rate.Z / 7. ) * -1.;
+        double score = ( std::abs ( aim.yaw ) / ( camera_h_fov / 2. ) ) * -2. + 1. + ( user.com.z / camera_depth ) * -2. + 1. + ( user.com_rate.z / 7. ) * -1.;
 
         /* If they have a new best score, update the best score and best user */
         if ( score > best_score ) { best_score = score; best_user = user; }
@@ -125,7 +125,7 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
     std::list<single_movement> future_movements;
 
     /* Store the change in yaw over the loop */
-    XnFloat delta_yaw = 0.;
+    float delta_yaw = 0.;
 
     /* Loop through n */
     for ( int i = 0; i < n; ++i )
@@ -140,7 +140,7 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
         if ( std::isnan ( aim.yaw ) ) break; aim.yaw -= delta_yaw;
 
         /* Calculate the yaw rate */
-        XnFloat yaw_rate = clamp ( rate_of_change ( aim.yaw, aim_period ), -max_yaw_velocity, +max_yaw_velocity );
+        float yaw_rate = clamp ( rate_of_change ( aim.yaw, aim_period ), -max_yaw_velocity, +max_yaw_velocity );
 
         /* Add the single movement */
         future_movements.push_back ( single_movement { aim_period, large_time_point, yaw_rate, aim.pitch } );

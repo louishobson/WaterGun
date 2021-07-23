@@ -54,7 +54,7 @@ public:
      * 
      * The position of the watergun in terms of yaw and pitch in radians.
      */
-    struct gun_position { XnFloat yaw, pitch; };
+    struct gun_position { float yaw, pitch; };
 
     /** struct single_movement
      * 
@@ -70,10 +70,10 @@ public:
         clock::time_point timestamp;
 
         /* The rate of change of yaw during this movement */
-        XnFloat yaw_rate;
+        float yaw_rate;
 
         /* The exact pitch to end with at the end of this movement */
-        XnFloat ending_pitch;
+        float ending_pitch;
     };
 
 
@@ -89,7 +89,7 @@ public:
      * @param _num_trackable_users: The max number of trackable users.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    aimer ( XnFloat _water_rate, XnFloat _air_resistance, XnFloat _max_yaw_velocity, clock::duration _aim_period = clock::duration { 0 }, vector3d _camera_offset = vector3d {}, XnUInt16 _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS );
+    aimer ( float _water_rate, float _air_resistance, float _max_yaw_velocity, clock::duration _aim_period = clock::duration { 0 }, vector3d _camera_offset = vector3d {}, int _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS );
 
     /** @name destructor
      * 
@@ -130,13 +130,13 @@ public:
 protected:
 
     /* The water velocity */
-    XnFloat water_rate;
+    float water_rate;
 
     /* Horizontal deceleration of water */
-    XnFloat air_resistance;
+    float air_resistance;
 
     /* Maximum yaw angular velocity in radians per second */
-    XnFloat max_yaw_velocity;
+    float max_yaw_velocity;
 
     /* The period of time with which the gun should aspire to be aiming at a user within */
     clock::duration aim_period;
