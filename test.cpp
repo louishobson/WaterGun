@@ -32,13 +32,19 @@ int main ()
     std::signal ( SIGINT, [] ( int signum ) { quit = true; } );
 
     /* Create the tracker */
-    watergun::aimer controller { 4, 0.0, M_PI / 2. };
+    watergun::aimer controller { 10, 0.0, M_PI / 2. };
+
+    /* First time point */
+    auto t0 = watergun::aimer::clock::now ();
 
     /* Loop until signalled to quit */
     while ( !quit )
     {
         /* Get the next info on tracked users */
         auto tracked_users = controller.wait_get_tracked_users ();
+
+        /* Second time point */
+        auto t1 = watergun::aimer::clock::now ();
 
         /* Print info */
         if ( tracked_users.size () ) 
@@ -54,6 +60,12 @@ int main ()
 
         /* Print time taken to compute user posisions */
         std::cout << std::chrono::duration_cast<std::chrono::duration<double>> ( controller.get_average_generation_time () ).count () << std::endl;
+        
+        /* Print the frame period */
+        //std::cout << ( t1 - t0 ).count () << std::endl;
+
+        /* Swap t0 and t1 */
+        std::swap ( t0, t1 );
     }
 
     /* Return success */
