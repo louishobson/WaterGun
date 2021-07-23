@@ -25,12 +25,11 @@
 #include <cmath>
 #include <condition_variable>
 #include <mutex>
+#include <NiTE2/NiTE.h>
 #include <string>
 #include <thread>
 #include <vector>
 #include <watergun/watergun_exception.h>
-#include <XnCppWrapper.h>
-#include <XnPropNames.h>
 
 
 
@@ -64,7 +63,7 @@ namespace watergun
      */
     struct vector3d;
 
-    /** class tracker
+    /** class tracker : nite::UserTracker::NewFrameListener
      * 
      * Creates a OpenNI/NITE context, and exposes human-tracking capabilities.
      */
@@ -77,24 +76,24 @@ namespace watergun
 
 
 
-/** struct vector3d : XnVector3D
+/** struct vector3d : nite::Point3f
  * 
- * Wrapper for XnVector3D, but with overloaded operations.
+ * Wrapper for nite::Point3f, but with overloaded operations.
  */
-struct watergun::vector3d : public XnVector3D
+struct watergun::vector3d : public nite::Point3f
 {
     /** @name default construction
      * 
      * @brief Initialize all components to 0.
      */
-    constexpr vector3d () noexcept : XnVector3D { 0., 0., 0. } {}
+    vector3d () noexcept : Point3f { 0., 0., 0. } {}
 
     /** @name single components constructor
      * 
      * @brief Initialize all components to the same value.
      * @param v: The value to initialize the components to.
      */
-    explicit constexpr vector3d ( XnFloat v ) noexcept : XnVector3D { v, v, v } {}
+    explicit vector3d ( float v ) noexcept : Point3f { v, v, v } {}
 
     /** @name three component constructor
      * 
@@ -103,27 +102,30 @@ struct watergun::vector3d : public XnVector3D
      * @param y: Y value.
      * @param z: Z value.
      */
-    constexpr vector3d ( XnFloat x, XnFloat y, XnFloat z ) noexcept : XnVector3D { x, y, z } {}
+    vector3d ( float x, float y, float z ) noexcept : Point3f { x, y, z } {}
+
+    /** @name Point3f constructor
+     * 
+     * @brief Construct from nite::Point3f object.
+     * @param v: The Point3f object.
+     */
+    vector3d ( const Point3f& v ) noexcept : Point3f { v } {}
 
 
-    
-    /* Default comparison operators */
-    constexpr bool operator== ( const vector3d& other ) const noexcept { return X == other.X && Y == other.Y && Z == other.Z; }
-    constexpr bool operator!= ( const vector3d& other ) const noexcept { return X != other.X || Y != other.Y || Z != other.Z; }
 
     /* Simple arithmetic operations */
-    constexpr vector3d operator+ ( const vector3d& other ) const noexcept { return vector3d { X + other.X, Y + other.Y, Z + other.Z }; }
-    constexpr vector3d operator- ( const vector3d& other ) const noexcept { return vector3d { X - other.X, Y - other.Y, Z - other.Z }; }
-    constexpr vector3d operator* ( const vector3d& other ) const noexcept { return vector3d { X * other.X, Y * other.Y, Z * other.Z }; }
-    constexpr vector3d operator/ ( const vector3d& other ) const noexcept { return vector3d { X / other.X, Y / other.Y, Z / other.Z }; }
-    constexpr vector3d& operator+= ( const vector3d& other ) noexcept { return * this = * this + other; }
-    constexpr vector3d& operator-= ( const vector3d& other ) noexcept { return * this = * this - other; }
-    constexpr vector3d& operator*= ( const vector3d& other ) noexcept { return * this = * this * other; }
-    constexpr vector3d& operator/= ( const vector3d& other ) noexcept { return * this = * this / other; }
-    constexpr vector3d operator* ( XnFloat scalar ) const noexcept { return * this * vector3d { scalar }; }
-    constexpr vector3d operator/ ( XnFloat scalar ) const noexcept { return * this / vector3d { scalar }; }
-    constexpr vector3d& operator*= ( XnFloat scalar ) noexcept { return * this = * this * scalar; }
-    constexpr vector3d& operator/= ( XnFloat scalar ) noexcept { return * this = * this / scalar; }
+    vector3d operator+ ( const vector3d& other ) const noexcept { return vector3d { x + other.x, y + other.y, z + other.z }; }
+    vector3d operator- ( const vector3d& other ) const noexcept { return vector3d { x - other.x, y - other.y, z - other.z }; }
+    vector3d operator* ( const vector3d& other ) const noexcept { return vector3d { x * other.x, y * other.y, z * other.z }; }
+    vector3d operator/ ( const vector3d& other ) const noexcept { return vector3d { x / other.x, y / other.y, z / other.z }; }
+    vector3d& operator+= ( const vector3d& other ) noexcept { return * this = * this + other; }
+    vector3d& operator-= ( const vector3d& other ) noexcept { return * this = * this - other; }
+    vector3d& operator*= ( const vector3d& other ) noexcept { return * this = * this * other; }
+    vector3d& operator/= ( const vector3d& other ) noexcept { return * this = * this / other; }
+    vector3d operator* ( float scalar ) const noexcept { return * this * vector3d { scalar }; }
+    vector3d operator/ ( float scalar ) const noexcept { return * this / vector3d { scalar }; }
+    vector3d& operator*= ( float scalar ) noexcept { return * this = * this * scalar; }
+    vector3d& operator/= ( float scalar ) noexcept { return * this = * this / scalar; }
 };
 
 
@@ -136,7 +138,7 @@ struct watergun::vector3d : public XnVector3D
  * 
  * Creates a OpenNI/NITE context, and exposes human-tracking capabilities.
  */
-class watergun::tracker
+class watergun::tracker : private nite::UserTracker::NewFrameListener
 {
 public:
 
@@ -150,7 +152,7 @@ public:
     struct tracked_user
     {
         /* The user ID */
-        XnUserID id;
+        nite::UserId id;
 
         /* The point in time that the position was taken */
         clock::time_point timestamp;
@@ -173,7 +175,7 @@ public:
      * @param _num_trackable_users: The max number of trackable users.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    explicit tracker ( vector3d _camera_offset = vector3d {}, XnUInt16 _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS );
+    explicit tracker ( vector3d _camera_offset = vector3d {}, int _num_trackable_users = WATERGUN_MAX_TRACKABLE_USERS );
 
     /** @name destructor
      * 
@@ -230,17 +232,17 @@ public:
 protected:
 
     /* The FOV and maximum depth of the camera */
-    XnFieldOfView camera_fov;
-    XnFloat camera_depth;
+    float camera_h_fov, camera_v_fov;
+    float camera_depth;
 
     /* The output mode of the camera */
-    XnMapOutputMode camera_output_mode;
+    openni::VideoMode camera_output_mode;
 
     /* The offset of the camera from the origin */
     vector3d camera_offset;
 
     /* The max number of trackabke users */
-    XnUInt16 num_trackable_users;
+    int num_trackable_users;
 
 
 
@@ -279,19 +281,18 @@ protected:
 
 private:
 
-    /* OpenNI context */
-    xn::Context context;
+    /* The OpenNI device handle */
+    openni::Device device;
 
-    /* OpenNI script node */
-    xn::ScriptNode script_node;
-    
-    /* OpenNI depth and user generators */
-    xn::DepthGenerator depth_generator;
-    xn::UserGenerator  user_generator;
+    /* OpenNI video stream object */
+    openni::VideoStream depth_stream;
+
+    /* NiTE user tracker */
+    nite::UserTracker user_tracker;
 
     /* System and OpenNI timestamps at the start of the program */
     clock::time_point system_timestamp;
-    XnUInt64 openni_timestamp;
+    std::uint64_t openni_timestamp;
 
 
 
@@ -299,7 +300,7 @@ private:
     const vector3d min_com_rate { M_PI / 240. /* 0.75 degrees */, 0.100 /* 10 cm */, 0.050 /* 5 cm */ };
 
     /* The clock sync period in frames */
-    const int clock_sync_period { 2 * 30 };
+    const int clock_sync_period { 30 * 30 };
 
 
 
@@ -309,26 +310,22 @@ private:
     /* The average computation time for the user generator */
     clock::duration average_generation_time { 0 };
 
+    /* A counter for re-syncing the clock in frames */
+    int clock_sync_counter { clock_sync_period };
+
     /* A mutex and condition variable to protect tracked_users */
     mutable std::mutex tracked_users_mx;
     mutable std::condition_variable tracked_users_cv;
 
 
 
-    /* The thread which is handling updating tracked_users */
-    std::thread tracker_thread;
-
-    /* Atomic bool telling the tracker thread when to quit */
-    std::atomic_bool end_threads { false };
-
-
-
-    /** @name  tracker_thread_function
+    /** @name  onNewFrame
      * 
-     * @brief  Function run by tracker_thread. Runs in a loop, updating tracked_users as new frames come in.
+     * @brief  Overload of pure virtual method, which will be called when new frame data is availible.
+     * @param  [unnamed]: The user tracker for which new data is availible.
      * @return Nothing.
      */
-    void tracker_thread_function ();
+    void onNewFrame ( nite::UserTracker& ) override final;
 
 
 
@@ -345,17 +342,18 @@ private:
      * @param  timestamp: The OpenNI timestamp.
      * @return A system timestamp.
      */
-    clock::time_point openni_to_system_timestamp ( XnUInt64 timestamp ) const noexcept { return system_timestamp + std::chrono::microseconds { timestamp - openni_timestamp }; }
+    clock::time_point openni_to_system_timestamp ( std::uint64_t timestamp ) const noexcept { return system_timestamp + std::chrono::microseconds { timestamp - openni_timestamp }; }
 
 
 
     /** @name  check_status
      * 
-     * @brief  Takes a returned status, and checks that is is XN_STATUS_OK. If not, throws with the supplied reason and status description after a colon.
-     * @param  status: The status returned from an OpenNI call.
+     * @brief  Takes a OpenNI or NiTE status, and checks that is is okay. If not, throws with the supplied reason and status description after a colon.
+     * @param  status: The status returned from an OpenNI or NiTE call.
      * @param  error_msg: The error message to set the exception to contain.
      */
-    static void check_status ( XnStatus status, const std::string& error_msg );
+    static void check_status ( openni::Status status, const std::string& error_msg );
+    static void check_status ( nite::Status status, const std::string& error_msg );
 
 };
 

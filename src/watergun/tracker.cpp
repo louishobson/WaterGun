@@ -40,31 +40,30 @@ const watergun::tracker::clock::time_point watergun::tracker::zero_time_point { 
  * @param _num_trackable_users: The max number of trackable users.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
-watergun::tracker::tracker ( const vector3d _camera_offset, const XnUInt16 _num_trackable_users )
+watergun::tracker::tracker ( const vector3d _camera_offset, const int _num_trackable_users )
     : camera_offset { _camera_offset }
     , num_trackable_users { _num_trackable_users }
 {
-    /* Initialize the context */
-    check_status ( context.Init (), "Failed to init context" );
+    /* Initialize OpenNI and NiTE */
+    check_status ( openni::OpenNI::initialize (), "Failed to initialize OpenNI" );
+    check_status ( nite::NiTE::initialize (), "Failed to initialize NiTE" );
 
-    /* Create and start the depth generator */
-    check_status ( depth_generator.Create ( context ), "Failed to init depth generator" );
-    depth_generator.StartGenerating ();
+    /* Open the Kinect device then create a video stream and user tracker */
+    check_status ( device.open ( openni::ANY_DEVICE ), "Failed to open device" );
+    check_status ( depth_stream.create ( device, openni::SensorType::SENSOR_DEPTH ), "Failed to open depth stream" );
+    check_status ( user_tracker.create ( &device ), "Failed to create user tracker" );
+
+    /* Set the protected camera properties */
+    camera_h_fov = depth_stream.getHorizontalFieldOfView ();
+    camera_v_fov = depth_stream.getVerticalFieldOfView ();
+    camera_depth = depth_stream.getMaxPixelValue ();
+    camera_output_mode = depth_stream.getVideoMode ();
 
     /* Sync clocks */
     sync_clocks ();
 
-    /* Create and start the user generator. */
-    check_status ( user_generator.Create ( context ), "Failed to init user generator" );
-    user_generator.StartGenerating ();
-
-    /* Set the protected camera properties */
-    depth_generator.GetFieldOfView ( camera_fov );
-    camera_depth = depth_generator.GetDeviceMaxDepth () / 1000.;
-    depth_generator.GetMapOutputMode ( camera_output_mode );
-
-    /* Start the tracking thread */
-    tracker_thread = std::thread { &tracker::tracker_thread_function, this };
+    /* Start listening to the user tracker */
+    user_tracker.addNewFrameListener ( this );
 }
 
 
@@ -75,20 +74,8 @@ watergun::tracker::tracker ( const vector3d _camera_offset, const XnUInt16 _num_
  */
 watergun::tracker::~tracker ()
 {
-    /* Set the end threads flag to true */
-    end_threads = true;
-
-    /* Join the tracker thread, if running */
-    if ( tracker_thread.joinable () ) tracker_thread.join ();
-
-    /* Stop generation */
-    context.StopGeneratingAll ();
-
-    /* Release contexts and handles */
-    script_node.Release ();
-    depth_generator.Release ();
-    user_generator.Release ();
-    context.Release ();
+    /* Shutdown NiTE */
+    nite::NiTE::shutdown ();
 }
 
 
@@ -168,68 +155,64 @@ watergun::tracker::tracked_user watergun::tracker::project_tracked_user ( const 
 
 
 
-/** @name  tracker_thread_function
+/** @name  onNewFrame
  * 
- * @brief  Function run by tracker_thread. Runs in a loop, updating tracked_users as new frames come in.
+ * @brief  Overload of pure virtual method, which will be called when new frame data is availible.
+ * @param  [unnamed]: The user tracker for which new data is availible.
  * @return Nothing.
  */
-void watergun::tracker::tracker_thread_function ()
+void watergun::tracker::onNewFrame ( nite::UserTracker& ) 
 {
-    /* Create a counter to recalibrate the clock */
-    int clock_sync_counter = clock_sync_period;
+    /* Read the new frame */
+    nite::UserTrackerFrameRef frame;
+    check_status ( user_tracker.readFrame ( &frame ), "Failed to read user tracker frame" );
+       
+    /* Lock the mutex */
+    std::unique_lock<std::mutex> lock { tracked_users_mx };
 
-    /* Loop while waiting for user data */
-    while ( user_generator.WaitAndUpdateData () == XN_STATUS_OK && !end_threads )
+    /* Get the timestamp that the frame became availible */
+    clock::time_point frame_timestamp = openni_to_system_timestamp ( frame.getTimestamp () );
+
+    /* Recompute average computation time */
+    average_generation_time = std::chrono::duration_cast<clock::duration> ( average_generation_time * 0.95 + ( clock::now () - frame_timestamp ) * 0.05 );
+
+    /* Get the users */
+    const auto& users = frame.getUsers ();
+
+    /* Create a new tracked users array and iterate through the tracked users to populate it */
+    std::vector<tracked_user> new_tracked_users;
+    for ( int i = 0; i < users.getSize (); ++i )
     {
-        /* Lock the mutex */
-        std::unique_lock<std::mutex> lock { tracked_users_mx };
+        /* Create the new user */
+        tracked_user user { users [ i ].getId (), frame_timestamp, users [ i ].getCenterOfMass (), vector3d {} };
 
-        /* Get the timestamp that the frame became availible */
-        clock::time_point frame_timestamp = openni_to_system_timestamp ( depth_generator.GetTimestamp () );
+        /* If the Z-coord is 0 (the user is lost), ignore this user. Else change to meters and add the camera offset. */
+        if ( user.com.z == 0. ) continue; user.com = user.com / 1000. + camera_offset;
 
-        /* Recompute average computation time */
-        average_generation_time = std::chrono::duration_cast<clock::duration> ( average_generation_time * 0.95 + ( clock::now () - frame_timestamp ) * 0.05 );
+        /* Replace the COM with polar coordinates */
+        user.com = { std::atan ( user.com.x / user.com.z ), user.com.y, std::sqrt ( user.com.x * user.com.x + user.com.z * user.com.z ) };
 
-        /* Get the number of users availible and populate an array with those users' IDs */
-        XnUInt16 num_users = num_trackable_users; std::vector<XnUserID> user_ids { num_trackable_users };
-        user_generator.GetUsers ( user_ids.data (), num_users );
+        /* See if a user of the same ID can be found in the last frame's tracked users */
+        auto it = std::find_if ( tracked_users.begin (), tracked_users.end (), [ &user ] ( const tracked_user& u ) { return u.id == user.id; } );
+        
+        /* If they were tracked in the last frame, dynamically project the user position back to the time of the last frame to calculate the COM rate. */
+        if ( it != tracked_users.end () ) user.com_rate = it->com_rate * 0.5 + rate_of_change ( dynamic_project_tracked_user ( user, it->timestamp ).com - it->com, user.timestamp - it->timestamp ) * 0.5;
 
-        /* Create a new tracked users array and iterate through the tracked users to populate it */
-        std::vector<tracked_user> new_tracked_users;
-        for ( const XnUserID user_id : user_ids )
-        {
-            /* Create the new user */
-            tracked_user user { user_id, frame_timestamp };
+        /* Use the minimum COM rate values to reduce noise */
+        if ( std::abs ( user.com_rate.x ) < min_com_rate.x ) user.com_rate.x = 0;
+        if ( std::abs ( user.com_rate.y ) < min_com_rate.y ) user.com_rate.y = 0;
+        if ( std::abs ( user.com_rate.z ) < min_com_rate.z ) user.com_rate.z = 0;
 
-            /* Get the COM for this user in cartesian coordinates. If the Z-coord is 0 (the user is lost), ignore this user. Else change to meters and add the camera offset. */
-            user_generator.GetCoM ( user_id, user.com );
-            if ( user.com.Z == 0. ) continue; user.com = user.com / 1000. + camera_offset;
-
-            /* Replace the COM with polar coordinates */
-            user.com = { std::atan ( user.com.X / user.com.Z ), user.com.Y, std::sqrt ( user.com.X * user.com.X + user.com.Z * user.com.Z ) };
-
-            /* See if a user of the same ID can be found in the last frame's tracked users */
-            auto it = std::find_if ( tracked_users.begin (), tracked_users.end (), [ user_id ] ( const tracked_user& u ) { return u.id == user_id; } );
-            
-            /* If they were tracked in the last frame, dynamically project the user position back to the time of the last frame to calculate the COM rate. */
-            if ( it != tracked_users.end () ) user.com_rate = it->com_rate * 0.5 + rate_of_change ( dynamic_project_tracked_user ( user, it->timestamp ).com - it->com, user.timestamp - it->timestamp ) * 0.5;
-
-            /* Use the minimum COM rate values to reduce noise */
-            if ( std::abs ( user.com_rate.X ) < min_com_rate.X ) user.com_rate.X = 0;
-            if ( std::abs ( user.com_rate.Y ) < min_com_rate.Y ) user.com_rate.Y = 0;
-            if ( std::abs ( user.com_rate.Z ) < min_com_rate.Z ) user.com_rate.Z = 0;
-
-            /* Add the tracked user to the new array */
-            new_tracked_users.push_back ( user );
-        }
-
-        /* Update the tracked users with the new array and notify the condition variable */
-        tracked_users = std::move ( new_tracked_users );
-        tracked_users_cv.notify_all ();
-
-        /* Possibly sync the clock */
-        if ( --clock_sync_counter == 0 ) { sync_clocks (); clock_sync_counter = clock_sync_period; }
+        /* Add the tracked user to the new array */
+        new_tracked_users.push_back ( user );
     }
+
+    /* Update the tracked users with the new array and notify the condition variable */
+    tracked_users = std::move ( new_tracked_users );
+    tracked_users_cv.notify_all ();
+
+    /* Possibly sync clocks */
+    if ( --clock_sync_counter == 0 ) sync_clocks ();
 }
 
 
@@ -241,24 +224,40 @@ void watergun::tracker::tracker_thread_function ()
  */
 void watergun::tracker::sync_clocks ()
 {
-    /* Wait for new depth data */
-    depth_generator.WaitAndUpdateData ();
-    
-    /* Set the clocks */
+    /* Start the depth stream */
+    depth_stream.start ();
+
+    /* Read the depth frame */
+    openni::VideoFrameRef frame;
+    depth_stream.readFrame ( &frame );
+    depth_stream.readFrame ( &frame );
+
+    /* Set clocks */
     system_timestamp = clock::now ();
-    openni_timestamp = depth_generator.GetTimestamp ();
+    openni_timestamp = frame.getTimestamp ();
+
+    /* Stop the depth stream */
+    depth_stream.stop ();
+
+    /* Set the sync counter */
+    clock_sync_counter = clock_sync_period;
 }
 
 
 
 /** @name  check_status
  * 
- * @brief  Takes a returned status, and checks that is is XN_STATUS_OK. If not, throws with the supplied reason and status description after a colon.
- * @param  status: The status returned from an OpenNI call.
+ * @brief  Takes a OpenNI or NiTE status, and checks that is is okay. If not, throws with the supplied reason and status description after a colon.
+ * @param  status: The status returned from an OpenNI or NiTE call.
  * @param  error_msg: The error message to set the exception to contain.
  */
-void watergun::tracker::check_status ( const XnStatus status, const std::string& error_msg )
+void watergun::tracker::check_status ( openni::Status status, const std::string& error_msg )
 {
-    /* If status != XN_STATUS_OK, throw an exception with error_msg as the message */
-    if ( status != XN_STATUS_OK ) throw watergun_exception { error_msg + ": " + xnGetStatusString ( status ) };
+    /* If status != STATUS_OK, throw an exception with error_msg as the message */
+    if ( status != openni::STATUS_OK ) throw watergun_exception { error_msg };
+}
+void watergun::tracker::check_status ( nite::Status status, const std::string& error_msg )
+{
+    /* If status != STATUS_OK, throw an exception with error_msg as the message */
+    if ( status != nite::STATUS_OK ) throw watergun_exception { error_msg };
 }
