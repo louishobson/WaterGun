@@ -72,8 +72,14 @@ watergun::tracker::tracker ( const vector3d _camera_offset )
  */
 watergun::tracker::~tracker ()
 {
-    /* Shutdown NiTE */
+    /* Destrroy user tracker, depth stream and device */
+    user_tracker.destroy ();
+    depth_stream.destroy ();
+    device.close ();
+    
+    /* Shutdown NiTE and OpenNI */
     nite::NiTE::shutdown ();
+    openni::OpenNI::shutdown ();
 }
 
 
