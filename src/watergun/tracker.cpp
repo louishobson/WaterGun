@@ -72,6 +72,9 @@ watergun::tracker::tracker ( const vector3d _camera_offset )
  */
 watergun::tracker::~tracker ()
 {
+    /* Remove user tracker listener */
+    user_tracker.removeNewFrameListener ( this );
+
     /* Destrroy user tracker, depth stream and device */
     user_tracker.destroy ();
     depth_stream.destroy ();
