@@ -37,9 +37,9 @@
 
 namespace watergun
 {
-    /** struct vector3d : XnVector3D
+    /** struct vector3d : nite::Point3f
      * 
-     * Wrapper for XnVector3D, but with arithmetic, component-wise operaions defined.
+     * Wrapper for nite::Point3f, but with overloaded operations.
      */
     struct vector3d;
 
