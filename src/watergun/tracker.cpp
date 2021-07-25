@@ -258,7 +258,7 @@ void watergun::tracker::sync_clocks ()
  * @param  status: The status returned from an OpenNI or NiTE call.
  * @param  error_msg: The error message to set the exception to contain.
  */
-void watergun::tracker::check_status ( openni::Status status, const std::string& error_msg )
+void watergun::tracker::check_status ( const openni::Status status, const std::string& error_msg )
 {
     /* If status != STATUS_OK, throw an exception with error_msg as the message */
     if ( status != openni::STATUS_OK ) throw watergun_exception { error_msg };
