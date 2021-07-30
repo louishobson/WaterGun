@@ -164,8 +164,8 @@ watergun::tracker::tracked_user watergun::tracker::project_tracked_user ( const 
 
 /** @name  onNewFrame
  * 
- * @brief  Overload of pure virtual method, which will be called when new frame data is availible.
- * @param  [unnamed]: The user tracker for which new data is availible.
+ * @brief  Overload of pure virtual method, which will be called when new frame data is available.
+ * @param  [unnamed]: The user tracker for which new data is available.
  * @return Nothing.
  */
 void watergun::tracker::onNewFrame ( nite::UserTracker& ) 
@@ -177,7 +177,7 @@ void watergun::tracker::onNewFrame ( nite::UserTracker& )
     /* Lock the mutex */
     std::unique_lock<std::mutex> lock { tracked_users_mx };
 
-    /* Get the timestamp that the frame became availible */
+    /* Get the timestamp that the frame became available */
     clock::time_point frame_timestamp = openni_to_system_timestamp ( frame.getTimestamp () );
 
     /* Recompute average computation time */

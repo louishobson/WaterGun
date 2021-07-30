@@ -142,18 +142,6 @@ protected:
 
 
 
-    /** @name  clamp
-     * 
-     * @brief  Clamps a number type between an upper and lower bound.
-     * @param  value: The value to clamp.
-     * @param  lower: The lower bound.
-     * @param  upper: The upper bound.
-     * @return A reference to value, lower or upper.
-     */
-    template<class T> static const T& clamp ( const T& value, const T& lower, const T& upper ) noexcept { return std::max ( lower, std::min ( value, upper ) ); }
-
-
-
 private:
 
     /** @name  solve_quartic

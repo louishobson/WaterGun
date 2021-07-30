@@ -29,6 +29,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <watergun/utility.h>
 #include <watergun/watergun_exception.h>
 
 
@@ -232,29 +233,6 @@ protected:
 
 
 
-    /** @name  duration_to_seconds
-     * 
-     * @brief  Get a duration in seconds as a double.
-     * @param  dur: The duration to cast.
-     * @return The duration in seconds.
-     */
-    template<class Rep, class Ratio>
-    static constexpr std::chrono::duration<double> duration_to_seconds ( std::chrono::duration<Rep, Ratio> dur ) noexcept
-        { return std::chrono::duration_cast<std::chrono::duration<double>> ( dur ); }
-
-    /** @name  rate_of_change
-     * 
-     * @brief  Calculate the rate of change, given value and time deltas.
-     * @param  delta_v: The change in value.
-     * @param  delta_t: The change in time.
-     * @return Rate of change as a double.
-     */
-    template<class T, class Rep, class Ratio>
-    static constexpr T rate_of_change ( T delta_v, std::chrono::duration<Rep, Ratio> delta_t ) noexcept
-        { return delta_v / duration_to_seconds ( delta_t ).count (); }
-
-
-
 private:
 
     /* The OpenNI device handle */
@@ -297,8 +275,8 @@ private:
 
     /** @name  onNewFrame
      * 
-     * @brief  Overload of pure virtual method, which will be called when new frame data is availible.
-     * @param  [unnamed]: The user tracker for which new data is availible.
+     * @brief  Overload of pure virtual method, which will be called when new frame data is available.
+     * @param  [unnamed]: The user tracker for which new data is available.
      * @return Nothing.
      */
     void onNewFrame ( nite::UserTracker& ) override final;

@@ -170,8 +170,8 @@ watergun::controller::tracked_user watergun::controller::dynamic_project_tracked
     {
         /* Get the duration within the early and late times, that this movement occured */
         const clock::duration movement_duration = 
-            clamp ( late_timestamp,  movement_timestamp, movement_timestamp + movement_it->duration ) - 
-            clamp ( early_timestamp, movement_timestamp, movement_timestamp + movement_it->duration );
+            watergun::clamp ( late_timestamp,  movement_timestamp, movement_timestamp + movement_it->duration ) - 
+            watergun::clamp ( early_timestamp, movement_timestamp, movement_timestamp + movement_it->duration );
 
         /* Add to the delta yaw */
         delta_yaw += movement_it->yaw_rate * duration_to_seconds ( movement_duration ).count ();

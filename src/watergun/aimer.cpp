@@ -77,7 +77,7 @@ watergun::aimer::gun_position watergun::aimer::calculate_aim ( const tracked_use
 
 /** @name  choose_target
  * 
- * @brief  Immediately choose a user to aim at from the currently availible data.
+ * @brief  Immediately choose a user to aim at from the currently available data.
  * @param  users: The users to aim at.
  * @return The tracked user the gun has chosen to aim for. The tracked user will be updated to represent the user's projected current position.
  */
@@ -139,7 +139,7 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
         if ( std::isnan ( aim.yaw ) ) break; aim.yaw -= delta_yaw;
 
         /* Calculate the yaw rate */
-        float yaw_rate = clamp ( rate_of_change ( aim.yaw, aim_period ), -max_yaw_velocity, +max_yaw_velocity );
+        float yaw_rate = watergun::clamp ( rate_of_change ( aim.yaw, aim_period ), -max_yaw_velocity, +max_yaw_velocity );
 
         /* Add the single movement */
         future_movements.push_back ( single_movement { aim_period, large_time_point, yaw_rate, aim.pitch } );
