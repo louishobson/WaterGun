@@ -4,14 +4,14 @@
 
 # g++ setup
 CPP=g++
-CPPFLAGS=-std=c++20 -Dlinux -Iinclude -L. -I/usr/local/include/OpenNI2 -I/usr/local/include/NiTE2 -O0 -g -pthread -latomic -lOpenNI2 -lNiTE2 -march=native -flto=auto -pedantic
+CPPFLAGS=-std=c++20 -Dlinux -Iinclude -L. -I/usr/local/include/OpenNI2 -I/usr/local/include/NiTE2 -O0 -g -pthread -latomic -lOpenNI2 -lNiTE2 -lmraa -march=native -flto=auto -pedantic
 
 # ar setup
 AR=ar
 ARFLAGS=-rc
 
 # object files
-OBJ=src/watergun/tracker.o src/watergun/aimer.o src/watergun/controller.o
+OBJ=src/watergun/tracker.o src/watergun/aimer.o src/watergun/controller.o src/watergun/stepper.o
 
 
 
