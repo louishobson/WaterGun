@@ -89,6 +89,50 @@ int watergun::stepper_base::choose_microstep_number ( const double velocity ) co
 
 
 
+/** @name  disable_motor
+ * 
+ * @brief  Put the motor tp sleep and turn off all direction and microstepping pins.
+ * @return Nothing.
+ */
+void watergun::stepper_base::disable_motor ()
+{
+    /* Set the sleep pin to on */
+    if ( sleep_gpio.isValid () ) sleep_gpio.write ( 1 );
+
+    /* Disable all microstepping pins */
+    if ( microstep_gpio_0.isValid () ) microstep_gpio_0.write ( 0 );
+    if ( microstep_gpio_1.isValid () ) microstep_gpio_1.write ( 0 );
+    if ( microstep_gpio_2.isValid () ) microstep_gpio_2.write ( 0 );
+
+    /* Set the direction pin to off */
+    dir_gpio.write ( 0 );
+} 
+
+
+
+/** @name  enable_motor
+ * 
+ * @brief  Take the motor out of sleep, and set up the microstepping and direction pins.
+ * @param  microstep_number: The microstep number to use.
+ * @param  direction: True for clockwise, false for anticlockwise.
+ * @return Nothing.
+ */
+void watergun::stepper_base::enable_motor ( const int microstep_number, const bool direction )
+{
+    /* Set the sleep pin to off */
+    if ( sleep_gpio.isValid () ) sleep_gpio.write ( 0 );
+
+    /* Set the microstep pin values */
+    if ( microstep_gpio_0.isValid () ) microstep_gpio_0.write ( microstep_number & 1 );
+    if ( microstep_gpio_1.isValid () ) microstep_gpio_1.write ( microstep_number & 2 );
+    if ( microstep_gpio_2.isValid () ) microstep_gpio_2.write ( microstep_number & 4 );
+
+    /* Set the direction pin */
+    dir_gpio.write ( !direction );
+}
+
+
+
 /** @name  create_pwm
  * 
  * @brief  Create a PWM pin
@@ -176,26 +220,8 @@ watergun::stepper_base::~stepper_base () {};
  */
 void watergun::pwm_stepper::set_velocity ( double velocity )
 {
-    /* If the velocity is 0, disable the motor */
-    if ( velocity == 0. )
-    {
-        /* Set the sleep pin to on */
-        if ( sleep_gpio.isValid () ) sleep_gpio.write ( 1 );
-
-        /* Disable all microstepping pins */
-        if ( microstep_gpio_0.isValid () ) microstep_gpio_0.write ( 0 );
-        if ( microstep_gpio_1.isValid () ) microstep_gpio_1.write ( 0 );
-        if ( microstep_gpio_2.isValid () ) microstep_gpio_2.write ( 0 );
-
-        /* Set the direction pin to off */
-        dir_gpio.write ( 0 );
-
-        /* Disable the PWM pin and return */
-        step_pwm.enable ( false );
-        return;
-    }
-
-    /* Else begin calculations for the motor */
+    /* If the velocity is 0, disable the motor and the PWM pin, and return */
+    if ( velocity == 0. ) { disable_motor (); step_pwm.enable ( false ); return; }
 
     /* Get the microstep number to keep the PWM frequency over the minimum */
     int microstep_number = choose_microstep_number ( velocity );
@@ -206,16 +232,8 @@ void watergun::pwm_stepper::set_velocity ( double velocity )
     /* Get the PWM period */
     double pwm_period = microstep_size / std::abs ( velocity ); 
 
-    /* Set the sleep pin to off */
-    if ( sleep_gpio.isValid () ) sleep_gpio.write ( 0 );
-
-    /* Set the microstep pin values */
-    if ( microstep_gpio_0.isValid () ) microstep_gpio_0.write ( microstep_number & 1 );
-    if ( microstep_gpio_1.isValid () ) microstep_gpio_1.write ( microstep_number & 2 );
-    if ( microstep_gpio_2.isValid () ) microstep_gpio_2.write ( microstep_number & 4 );
-
-    /* Set the direction pin */
-    dir_gpio.write ( velocity < 0. );
+    /* Enable the motor */
+    enable_motor ( microstep_number, velocity > 0. );
 
     /* Set the PWM pin */
     step_pwm.period ( pwm_period );
@@ -309,15 +327,15 @@ void watergun::gpio_stepper::stepper_thread_function ()
     /* Create a lock on the mutex */
     std::unique_lock<std::mutex> lock { stepper_mx };
 
-    /* Put the motor into sleep mode */
-    sleep_gpio.write ( 1 );
-
-    /* Wait for a new angle */
-    stepper_cv.wait ( lock );
+    /* Remember the required steps */
+    int required_steps = 0;
 
     /* Loop while should not be ending the thread */
     while ( !end_thread )
     {
+        /* Wait for new steps, since all of the previous ones were fully completed */
+        if ( required_steps == 0 ) { disable_motor (); stepper_cv.wait ( lock ); }
+
         /* Calculate the required velocity */
         double velocity = watergun::clamp ( rate_of_change ( target_angle - current_angle, target_transition_time ), -max_motor_velocity, +max_motor_velocity );
 
@@ -330,38 +348,26 @@ void watergun::gpio_stepper::stepper_thread_function ()
         /* Get the period */
         double period = std::max ( microstep_size / std::abs ( velocity ), min_step_period );
 
-        /* Get the number of steps required */
-        int required_steps = std::abs ( target_angle - current_angle ) / microstep_size;
-    
-        /* Set the sleep pin to off */
-        if ( sleep_gpio.isValid () ) sleep_gpio.write ( 0 );
+        /* Get the number of steps required, and if there are none, continue */
+        required_steps = std::abs ( target_angle - current_angle ) / microstep_size;
+        if ( required_steps == 0 ) continue;
 
-        /* Set the microstep pin values */
-        if ( microstep_gpio_0.isValid () ) microstep_gpio_0.write ( microstep_number & 1 );
-        if ( microstep_gpio_1.isValid () ) microstep_gpio_1.write ( microstep_number & 2 );
-        if ( microstep_gpio_2.isValid () ) microstep_gpio_2.write ( microstep_number & 4 );
-
-        /* Set the direction pin */
-        dir_gpio.write ( velocity < 0. );
+        /* Enable the motor */
+        enable_motor ( microstep_number, velocity > 0. );
 
         /* Loop until all required steps are made, or the condition variable is notified */
         do {
-            /* Turn on the step GPIO, sleep for half the minimum period, then turn it back on */
+            /* Turn on the step GPIO, sleep for half the minimum period, then turn it back off, and sleep for the other half */
             step_gpio.write ( 1 );
             std::this_thread::sleep_for ( std::chrono::duration<double> { min_step_period / 2. } );
             step_gpio.write ( 0 );
+            std::this_thread::sleep_for ( std::chrono::duration<double> { min_step_period / 2. } );
 
             /* Change the current angle */
             if ( velocity > 0. ) current_angle += microstep_size; else current_angle -= microstep_size;
 
-            /* Decrement required steps, and break if complete */
-            if ( --required_steps == 0 ) break;
-
-            /* Sleep for the rest of the period, but break if interrupted by the condition variable */
-        } while ( stepper_cv.wait_for ( lock, std::chrono::duration<double> { period - min_step_period / 2. } ) == std::cv_status::timeout );
-
-        /* Wait on condition variable if completed all required steps */
-        if ( required_steps == 0 ) stepper_cv.wait ( lock );
+            /* Break if all required steps have been made, or if the condition variable interrupts the rest of the period */
+        } while ( --required_steps != 0 && stepper_cv.wait_for ( lock, std::chrono::duration<double> { period - min_step_period } ) == std::cv_status::no_timeout );
     }
 }
 

@@ -128,6 +128,24 @@ protected:
 
 
 
+    /** @name  disable_motor
+     * 
+     * @brief  Put the motor to sleep and turn off all direction and microstepping and direction pins.
+     * @return Nothing.
+     */
+    void disable_motor ();
+
+    /** @name  enable_motor
+     * 
+     * @brief  Take the motor out of sleep, and set up the microstepping and direction pins.
+     * @param  microstep_number: The microstep number to use.
+     * @param  direction: True for clockwise, false for anticlockwise.
+     * @return Nothing.
+     */
+    void enable_motor ( int microstep_number, bool direction );
+
+
+
     /** @name  create_pwm
      * 
      * @brief  Create a PWM pin.
@@ -256,7 +274,7 @@ private:
     const double max_motor_velocity { 3 * 2 * M_PI };
 
     /* The minumum step period */
-    const double min_step_period { 200e-6 };
+    const double min_step_period { 100e-6 };
 
 
 
