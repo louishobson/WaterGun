@@ -285,6 +285,7 @@ void watergun::pwm_stepper::set_velocity ( double velocity )
 watergun::gpio_stepper::gpio_stepper ( const double _step_size, const double _min_step_freq, const double _max_velocity, const int _step_pin, const int _dir_pin, const int _microstep_pin_0, const int _microstep_pin_1, const int _microstep_pin_2, const int _sleep_pin, const int _position_pin ) try
     : stepper_base { _step_size, _min_step_freq, _step_pin, _dir_pin, _microstep_pin_0, _microstep_pin_1, _microstep_pin_2, _sleep_pin }
     , max_velocity { _max_velocity }
+    , position_pin { _position_pin }
 {
     /* Initialize the step and position GPIOs */
     step_gpio = create_output_gpio ( step_pin );

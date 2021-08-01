@@ -108,13 +108,13 @@ public:
 protected:
 
     /* The number of radians per whole step of the motor */
-    double step_size;
+    const double step_size;
 
     /* The minimum PWM frequency before microstepping is increased */
-    double min_step_freq;
+    const double min_step_freq;
 
     /* Pin numbers */
-    int step_pin, dir_pin, microstep_pin_0, microstep_pin_1, microstep_pin_2, sleep_pin;
+    const int step_pin, dir_pin, microstep_pin_0, microstep_pin_1, microstep_pin_2, sleep_pin;
 
     /* The availible microstepping numbers (0 for full step, 1 for 1/2, etc.) */
     std::list<int> availible_microstep_numbers { 0, 1, 2, 3, 4, 5 };
@@ -303,7 +303,7 @@ public:
 private:
 
     /* Position pin */
-    int position_pin;
+    const int position_pin;
 
     /* Step and position GPIO pins */
     mraa::Gpio step_gpio, position_gpio;
