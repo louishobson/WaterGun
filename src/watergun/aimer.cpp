@@ -142,7 +142,7 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
         float yaw_rate = watergun::clamp ( rate_of_change ( aim.yaw, aim_period ), -max_yaw_velocity, +max_yaw_velocity );
 
         /* Add the single movement */
-        future_movements.push_back ( single_movement { aim_period, large_time_point, yaw_rate, aim.pitch } );
+        future_movements.push_back ( single_movement { aim_period, user.timestamp, yaw_rate, aim.pitch } );
 
         /* Add to the delta yaw */
         delta_yaw += yaw_rate * duration_to_seconds ( aim_period ).count ();
