@@ -150,18 +150,17 @@ watergun::controller::tracked_user watergun::controller::dynamic_project_tracked
     /* Iterate backwards through the movement plan to find a movement that started before the early timestamp */
     auto movement_it = current_movement; while ( movement_it->timestamp > early_timestamp ) --movement_it;
 
-    /* Get the timestamp of the current movement. Iterate over the movements, adding up the change in yaw, until the late timestamp is met. */
-    float delta_yaw = 0.;
-    for ( clock::time_point movement_timestamp = movement_it->timestamp; movement_timestamp < late_timestamp; movement_timestamp += movement_it++->duration )
+    /* Iterate over the movements, adding up the change in yaw, until the late timestamp is met. */
+    float delta_yaw = 0.; do
     {
         /* Get the duration within the early and late times, that this movement occured */
         const clock::duration movement_duration = 
-            watergun::clamp ( late_timestamp,  movement_timestamp, movement_timestamp + movement_it->duration ) - 
-            watergun::clamp ( early_timestamp, movement_timestamp, movement_timestamp + movement_it->duration );
+            watergun::clamp ( late_timestamp,  movement_it->timestamp, movement_it->timestamp + movement_it->duration ) - 
+            watergun::clamp ( early_timestamp, movement_it->timestamp, movement_it->timestamp + movement_it->duration );
 
         /* Add to the delta yaw */
         delta_yaw += movement_it->yaw_rate * duration_to_seconds ( movement_duration ).count ();
-    }
+    } while ( ( ++movement_it )->timestamp < late_timestamp );
 
     /* Unlock the mutex */
     lock.unlock ();
