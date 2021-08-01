@@ -21,6 +21,7 @@
 /* INCLUDES */
 #include <list>
 #include <watergun/aimer.h>
+#include <watergun/stepper.h>
 
 
 
@@ -51,7 +52,8 @@ public:
     /** @name constructor
      * 
      * @brief Sets up controller, then begins controlling the servos.
-     * @param _servo_period: The period to update servo positions.
+     * @param _yaw_stepper: The yaw stepper motor to use.
+     * @param _pitch_stepper: The pitch stepper motor to use.
      * @param _search_yaw_velocity: The yaw angular velocity in radians per second when searching for a user.
      * @param _water_rate: The velocity of the water leaving the watergun (depends on psi etc).
      * @param _air_resistance: Horizontal deceleration of the water, to model small amounts of air resistance.
@@ -60,7 +62,7 @@ public:
      * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    controller ( clock::duration _servo_period, float _search_yaw_velocity, float _water_rate, float _air_resistance, float _max_yaw_velocity, clock::duration _aim_period, vector3d _camera_offset = vector3d {} );
+    controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pitch_stepper, float _search_yaw_velocity, float _water_rate, float _air_resistance, float _max_yaw_velocity, clock::duration _aim_period, vector3d _camera_offset = vector3d {} );
 
     /** @name destructor
      * 
@@ -115,15 +117,18 @@ public:
 
 protected:
 
-    /* The servo period */
-    clock::duration servo_period;
-
     /* The angular velocity when searching for users */
     float search_yaw_velocity;
 
 
 
 private:
+
+    /* The stepper motors */
+    pwm_stepper&  yaw_stepper;
+    gpio_stepper& pitch_stepper;
+
+
 
     /* A double ended queue of single movements, representing past and future movements */
     std::list<single_movement> movement_plan;
@@ -141,10 +146,7 @@ private:
 
 
     /* A thread to handle the updating of the movement plan */
-    std::thread movement_planner_thread;
-
-    /* A thread to handle controlling the servos */
-    std::thread servo_controller_thread;
+    std::thread controller_thread;
 
     /* An atomic boolean telling threads when to end */
     std::atomic_bool end_threads { false };
@@ -153,17 +155,10 @@ private:
 
     /** @name  movement_planner_thread_function
      * 
-     * @brief  Function run by movement_planner_thread. Continuously updates movement_plan, and notifies the condition variable.
+     * @brief  Function run by controller_thread. Continuously updates movement_plan, and notifies the condition variable.
      * @return Nothing.
      */
     void movement_planner_thread_function ();
-
-    /** @name  servo_controller_thread_function
-     * 
-     * @brief  Function run by servo_controller_thread. Continuously updates the servos based on the motion plan made by the movement planner thread.
-     * @return Nothing.
-     */
-    void servo_controller_thread_function ();
 
 };
 

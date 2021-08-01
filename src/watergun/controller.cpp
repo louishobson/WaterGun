@@ -24,7 +24,8 @@
 /** @name constructor
  * 
  * @brief Sets up controller, then begins controlling the servos.
- * @param _servo_period: The period to update servo positions.
+ * @param _yaw_stepper: The yaw stepper motor to use.
+ * @param _pitch_stepper: The pitch stepper motor to use.
  * @param _search_yaw_velocity: The yaw angular velocity in radians per second when searching for a user.
  * @param _water_rate: The velocity of the water leaving the watergun (depends on psi etc).
  * @param _air_resistance: Horizontal deceleration of the water, to model small amounts of air resistance.
@@ -33,9 +34,10 @@
  * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
-watergun::controller::controller ( const clock::duration _servo_period, const float _search_yaw_velocity, const float _water_rate, const float _air_resistance, const float _max_yaw_velocity, const clock::duration _aim_period, const vector3d _camera_offset )
+watergun::controller::controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pitch_stepper, const float _search_yaw_velocity, const float _water_rate, const float _air_resistance, const float _max_yaw_velocity, const clock::duration _aim_period, const vector3d _camera_offset )
     : aimer ( _water_rate, _air_resistance, _max_yaw_velocity, _aim_period, _camera_offset )
-    , servo_period { _servo_period }
+    , yaw_stepper { _yaw_stepper }
+    , pitch_stepper { _pitch_stepper }
     , search_yaw_velocity { _search_yaw_velocity }
     , num_future_movements { static_cast<int> ( std::chrono::seconds { 1 } / _aim_period ) }
 {
@@ -48,14 +50,11 @@ watergun::controller::controller ( const clock::duration _servo_period, const fl
     /* Set the current movement */
     current_movement = std::next ( movement_plan.begin () );
 
-    /* Start the servo thread */
-    servo_controller_thread = std::thread ( &watergun::controller::servo_controller_thread_function, this );
-
     /* Sleep for a short time */
     std::this_thread::sleep_for ( std::chrono::milliseconds { 100 } );
 
     /* Start the movement planner thread */
-    movement_planner_thread = std::thread ( &watergun::controller::movement_planner_thread_function, this );
+    controller_thread = std::thread ( &watergun::controller::movement_planner_thread_function, this );
 }
 
 
@@ -70,8 +69,7 @@ watergun::controller::~controller ()
     end_threads = true;
 
     /* If any threads are running, join them */
-    if ( movement_planner_thread.joinable () ) movement_planner_thread.join ();
-    if ( servo_controller_thread.joinable () ) servo_controller_thread.join ();
+    if ( controller_thread.joinable () ) controller_thread.join ();
 }
 
 
@@ -112,13 +110,8 @@ std::list<watergun::controller::single_movement> watergun::controller::wait_get_
  */
 watergun::controller::single_movement watergun::controller::get_current_movement () const
 {
-    /* Lock the mutex */
+    /* Lock the mutex and return the current movement */
     std::unique_lock<std::mutex> lock { movement_mx };
-
-    /* While the current movement has a large timestamp, wait for it to update */
-    while ( current_movement->timestamp == large_time_point ) { lock.unlock (); std::this_thread::sleep_for ( servo_period ); lock.lock (); }
-
-    /* Return the movement */
     return * current_movement;
 }
 
@@ -131,16 +124,9 @@ watergun::controller::single_movement watergun::controller::get_current_movement
  */
 watergun::controller::single_movement watergun::controller::wait_get_current_movement () const
 {
-    /* Lock the mutex */
+    /* Lock the mutex, wait on the condition variable and return the current movement */
     std::unique_lock<std::mutex> lock { movement_mx };
-
-    /* Wait on the condition variable */
     movement_cv.wait ( lock );
-
-    /* While the current movement has a large timestamp, wait for it to update */
-    while ( current_movement->timestamp == large_time_point ) { lock.unlock (); std::this_thread::sleep_for ( servo_period ); lock.lock (); }
-
-    /* Return the movement */
     return * current_movement;
 }
 
@@ -194,16 +180,19 @@ watergun::controller::tracked_user watergun::controller::dynamic_project_tracked
 
 /** @name  movement_planner_thread_function
  * 
- * @brief  Function run by movement_planner_thread. Continuously updates movement_plan, and notifies the condition variable.
+ * @brief  Function run by controller_thread. Continuously updates movement_plan, and notifies the condition variable.
  * @return Nothing.
  */
 void watergun::controller::movement_planner_thread_function ()
 {
+    /* Wait for tracked users */
+    wait_for_tracked_users ( large_duration );
+
     /* Loop while not signalled to end */
     while ( !end_threads )
     {
         /* Get tracked users and choose a target. If there is no target, notify and continue. */
-        tracked_user target = choose_target ( wait_get_tracked_users () );
+        tracked_user target = choose_target ( get_tracked_users () );
         if ( target.com == vector3d {} ) { movement_cv.notify_all (); continue; }
 
         /* Lock the mutex */
@@ -218,38 +207,23 @@ void watergun::controller::movement_planner_thread_function ()
         /* Add a search movement to the end of the plan */
         movement_plan.push_back ( single_movement { large_duration, large_time_point, std::copysign ( search_yaw_velocity, movement_plan.back ().yaw_rate ), 0. } );
 
-        /* Increment the current movement */
-        std::advance ( current_movement, 1 );
+        /* Update the motors for every new movement */
+        do {
+            /* Increment the current movement */
+            std::advance ( current_movement, 1 );
 
-        /* Signal the condition variable */
-        movement_cv.notify_all ();
-    }
-}
+            /* Set the start time and duration of previous movement */
+            current_movement->timestamp = clock::now ();
+            std::prev ( current_movement )->duration = current_movement->timestamp - std::prev ( current_movement )->timestamp;
 
+            /* Do servos */
+            yaw_stepper.set_velocity ( current_movement->yaw_rate );
+            pitch_stepper.set_position ( current_movement->ending_pitch, current_movement->duration );
 
+            /* Notify */
+            movement_cv.notify_all ();
 
-/** @name  servo_controller_thread_function
- * 
- * @brief  Function run by servo_controller_thread. Continuously updates the servos based on the motion plan made by the movement planner thread.
- * @return Nothing.
- */
-void watergun::controller::servo_controller_thread_function ()
-{
-    /* Create a permanent mutex lock, while not waiting */
-    std::unique_lock<std::mutex> lock { movement_mx };
-
-    /* Loop while not signalled to end */
-    while ( !end_threads )
-    {
-        /* Possibly increment the current movement, if it should finish now */
-        if ( clock::now () > current_movement->timestamp + current_movement->duration ) ++current_movement;
-
-        /* If just arrived at a new movement, update the timestamp and correct the previous movement's duration */
-        if ( current_movement->timestamp == large_time_point ) { current_movement->timestamp = clock::now (); std::prev ( current_movement )->duration = current_movement->timestamp - std::prev ( current_movement )->timestamp; }
-
-        /* Do servos */
-
-        /* Wait on the condition variable or until the next servo update */
-        movement_cv.wait_until ( lock, std::min ( clock::now () + servo_period, current_movement->timestamp + current_movement->duration ) );
+            /* Break if new tracked user data is availible */
+        } while ( !wait_for_present_tracked_users ( current_movement->duration ) );
     }
 }
