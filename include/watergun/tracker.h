@@ -165,6 +165,13 @@ public:
 
 
 
+    /** @name  get_num_tracked_users
+     * 
+     * @brief  Immediately return the number of tracked users.
+     * @return Integer.
+     */
+    int get_num_tracked_users () const;
+
     /** @name  get_tracked_users
      * 
      * @brief  Immediately return an array of the currently tracked users. The timestamp and positions of the tracked users are projected to now.
@@ -178,6 +185,24 @@ public:
      * @return Vector of users.
      */
     std::vector<tracked_user> wait_get_tracked_users () const;
+
+    /** @name  wait_for_tracked_users
+     * 
+     * @brief  Wait on a timeout for new tracked users to become availible.
+     * @param  timeout: The duration to wait for or time point to wait until.
+     * @return True if new tracked users are availible, false otherwise.
+     */
+    bool wait_for_tracked_users ( clock::duration timeout ) const;
+    bool wait_for_tracked_users ( clock::time_point timeout ) const;
+
+    /** @name  wait_for_present_tracked_users
+     * 
+     * @brief  Wait on a timeout for new tracked users to become availible and where there is at least one user present.
+     * @param  timeout: The duration to wait for or time point to wait until.
+     * @return True if new tracked users are availible, false otherwise.
+     */
+    bool wait_for_present_tracked_users ( clock::duration timeout ) const;
+    bool wait_for_present_tracked_users ( clock::time_point timeout ) const;
 
     /** @name  get_average_generation_time
      * 

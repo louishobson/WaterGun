@@ -87,6 +87,20 @@ watergun::tracker::~tracker ()
 
 
 
+/** @name  get_num_tracked_users
+ * 
+ * @brief  Immediately return the number of tracked users.
+ * @return Integer.
+ */
+int watergun::tracker::get_num_tracked_users () const
+{
+    /* Lock the mutex then return the number of tracked users */
+    std::unique_lock<std::mutex> lock { tracked_users_mx };
+    return tracked_users.size ();
+}
+
+
+
 /** @name  get_tracked_users
  * 
  * @brief  Immediately return an array of the currently tracked users. The timestamp and positions of the tracked users are projected to now.
@@ -106,6 +120,8 @@ std::vector<watergun::tracker::tracked_user> watergun::tracker::get_tracked_user
     return tracked_users_copy;
 }
 
+
+
 /** @name  wait_get_tracked_users
  * 
  * @brief  Wait for data on tracked users to update, then return an array of them. The timestamp and positions of the tracked users are projected to now.
@@ -124,6 +140,58 @@ std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_get_tracked
 
     /* Return the tracked users */
     return tracked_users_copy;
+}
+
+
+
+/** @name  wait_for_tracked_users
+ * 
+ * @brief  Wait on a timeout for new tracked users to become availible.
+ * @param  timeout: The duration to wait for or time point to wait until.
+ * @return True if new tracked users are availible, false otherwise.
+ */
+bool watergun::tracker::wait_for_tracked_users ( const clock::duration timeout ) const
+{
+    /* Call the time point version */
+    return wait_for_tracked_users ( clock::now () + timeout );
+}
+bool watergun::tracker::wait_for_tracked_users ( const clock::time_point timeout ) const
+{
+    /* Lock the mutex, wait on the condition variable and return true iff the wait does not time out */
+    std::unique_lock<std::mutex> lock { tracked_users_mx };
+    return tracked_users_cv.wait_until ( lock, timeout ) == std::cv_status::no_timeout;   
+}
+
+
+
+/** @name  wait_for_present_tracked_users
+ * 
+ * @brief  Wait on a timeout for new tracked users to become availible and where there is at least one user present.
+ * @param  timeout: The duration to wait for or time point to wait until.
+ * @return True if new tracked users are availible, false otherwise.
+ */
+bool watergun::tracker::wait_for_present_tracked_users ( const clock::duration timeout ) const
+{
+    /* Call the time point version */
+    return wait_for_tracked_users ( clock::now () + timeout );
+}
+bool watergun::tracker::wait_for_present_tracked_users ( clock::time_point timeout ) const
+{
+    /* Lock the mutex */
+    std::unique_lock<std::mutex> lock { tracked_users_mx };
+
+    /* If there are currently tracked users, wait without a predicate for there to be no users present */
+    if ( tracked_users.size () )
+    {
+        /* Wait on the condition variable and return false if it times out */
+        if ( tracked_users_cv.wait_until ( lock, timeout ) == std::cv_status::timeout ) return false;
+        
+        /* It did not time out, so return true if there are now users present */
+        else if ( tracked_users.size () ) return true;
+    }
+
+    /* Otherwise wait with a predicate, and return whether there are any present users */
+    return tracked_users_cv.wait_until ( lock, timeout, [ this ] () { return tracked_users.size (); } ); 
 }
 
 
