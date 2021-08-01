@@ -203,9 +203,9 @@ mraa::Gpio watergun::stepper_base::create_input_gpio ( const int pin, const bool
 
 /** @name constructor
  * 
- * @brief Set the motor stepping angle, controlling GPIO pins and min PWM frequency.
+ * @brief Set the motor stepping angle, controlling GPIO pins and min step frequency.
  * @param _step_size: The number of radians per whole step of the motor.
- * @param _min_step_freq: The minimum PWM frequency before microstepping is increased.
+ * @param _min_step_freq: The minimum step frequency before microstepping is increased.
  * @param _step_pin: The pin number for the step control.
  * @param _dir_pin: The pin number for direction control.
  * @param _microstep_pin_0: The first pin for microstepping control, or -1 for always off, or -2 for always on.
@@ -273,6 +273,7 @@ void watergun::pwm_stepper::set_velocity ( double velocity )
  * @brief Set the motor stepping angle, controlling GPIO pins and min PWM frequency.
  * @param _step_size: The number of radians per whole step of the motor.
  * @param _min_step_freq: The minimum PWM frequency before microstepping is increased.
+ * @param _max_velocity: The maximum motor velocity.
  * @param _step_pin: The pin number for the step control.
  * @param _dir_pin: The pin number for direction control.
  * @param _microstep_pin_0: The first pin for microstepping control, or -1 for always off, or -2 for always on.
@@ -281,8 +282,9 @@ void watergun::pwm_stepper::set_velocity ( double velocity )
  * @param _sleep_pin: The pin number for motor sleep control, or -1 for not present.
  * @param _position_pin: The pin number which provides stepper positioning capabilities, or -1 for not present.
  */
-watergun::gpio_stepper::gpio_stepper ( const double _step_size, const double _min_step_freq, const int _step_pin, const int _dir_pin, const int _microstep_pin_0, const int _microstep_pin_1, const int _microstep_pin_2, const int _sleep_pin, const int _position_pin ) try
+watergun::gpio_stepper::gpio_stepper ( const double _step_size, const double _min_step_freq, const double _max_velocity, const int _step_pin, const int _dir_pin, const int _microstep_pin_0, const int _microstep_pin_1, const int _microstep_pin_2, const int _sleep_pin, const int _position_pin ) try
     : stepper_base { _step_size, _min_step_freq, _step_pin, _dir_pin, _microstep_pin_0, _microstep_pin_1, _microstep_pin_2, _sleep_pin }
+    , max_velocity { _max_velocity }
 {
     /* Initialize the step and position GPIOs */
     step_gpio = create_output_gpio ( step_pin );
@@ -404,7 +406,7 @@ void watergun::gpio_stepper::stepper_thread_function ()
         if ( required_steps == 0 ) { disable_motor (); stepper_cv.wait ( lock ); }
 
         /* Calculate the required velocity */
-        double velocity = watergun::clamp ( rate_of_change ( target_angle - current_angle, target_transition_time ), -max_motor_velocity, +max_motor_velocity );
+        double velocity = watergun::clamp ( rate_of_change ( target_angle - current_angle, target_transition_time ), -max_velocity, +max_velocity );
 
         /* Get the microstepping number */
         int microstep_number = choose_microstep_number ( velocity );

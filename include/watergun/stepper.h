@@ -195,9 +195,9 @@ public:
 
     /** @name constructor
      * 
-     * @brief Set the motor stepping angle, controlling GPIO pins and min PWM frequency.
+     * @brief Set the motor stepping angle, controlling GPIO pins and min step frequency.
      * @param _step_size: The number of radians per whole step of the motor.
-     * @param _min_step_freq: The minimum PWM frequency before microstepping is increased.
+     * @param _min_step_freq: The minimum step frequency before microstepping is increased.
      * @param _step_pin: The pin number for the step control.
      * @param _dir_pin: The pin number for direction control.
      * @param _microstep_pin_0: The first pin for microstepping control, or -1 for always off, or -2 for always on.
@@ -251,9 +251,10 @@ public:
 
     /** @name constructor
      * 
-     * @brief Set the motor stepping angle, controlling GPIO pins and min PWM frequency.
+     * @brief Set the motor stepping angle, controlling GPIO pins and min step frequency.
      * @param _step_size: The number of radians per whole step of the motor.
-     * @param _min_step_freq: The minimum PWM frequency before microstepping is increased.
+     * @param _min_step_freq: The minimum step frequency before microstepping is increased.
+     * @param _max_velocity: The maximum motor velocity.
      * @param _step_pin: The pin number for the step control.
      * @param _dir_pin: The pin number for direction control.
      * @param _microstep_pin_0: The first pin for microstepping control, or -1 for always off, or -2 for always on.
@@ -262,7 +263,7 @@ public:
      * @param _sleep_pin: The pin number for motor sleep control, or -1 for not present.
      * @param _position_pin: The pin number which provides stepper positioning capabilities, or -1 for not present.
      */
-    gpio_stepper ( double _step_size, double _min_step_freq, int _step_pin, int _dir_pin, int _microstep_pin_0, int _microstep_pin_1, int _microstep_pin_2, int _sleep_pin, int _position_pin );
+    gpio_stepper ( double _step_size, double _min_step_freq, double _max_velocitt, int _step_pin, int _dir_pin, int _microstep_pin_0, int _microstep_pin_1, int _microstep_pin_2, int _sleep_pin, int _position_pin );
 
     /** @name deleted copy constructor
      * 
@@ -310,7 +311,7 @@ private:
 
 
     /* The maximum motor velocity in radians per second */
-    const double max_motor_velocity { 3 * 2 * M_PI };
+    const double max_velocity;
 
     /* The minumum step period */
     const double min_step_period { 100e-6 };
