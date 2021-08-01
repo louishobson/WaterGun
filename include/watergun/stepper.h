@@ -86,6 +86,12 @@ public:
      */
     stepper_base ( double _step_size, double _min_step_freq, int _step_pin, int _dir_pin, int _microstep_pin_0, int _microstep_pin_1, int _microstep_pin_2, int _sleep_pin );
 
+    /** @name deleted copy constructor
+     * 
+     * @brief Copying is not allowed, since pins would have to be shared between devices.
+     */
+    stepper_base ( const stepper_base& other ) = delete;
+
     /** @name pure virtual destructor
      * 
      * @brief A stepper_base class should be abstract.
@@ -162,6 +168,15 @@ protected:
      */
     static mraa::Gpio create_output_gpio ( int pin );
 
+    /** @name  create_input_gpio
+     * 
+     * @brief  Create an input GPIO pin.
+     * @param  pin: The pin to create the GPIO object on.
+     * @param  mode: False for pull down, True for pull up.
+     * @return The GPIO object.
+     */
+    static mraa::Gpio create_input_gpio ( int pin, bool mode = false );
+
 };
 
 
@@ -191,6 +206,15 @@ public:
      * @param _sleep_pin: The pin number for motor sleep control, or -1 for not present.
      */
     pwm_stepper ( double _step_size, double _min_step_freq, int _step_pin, int _dir_pin, int _microstep_pin_0, int _microstep_pin_1, int _microstep_pin_2, int _sleep_pin );
+
+    /** @name deleted copy constructor
+     * 
+     * @brief Copying is not allowed, since pins would have to be shared between devices.
+     */
+    pwm_stepper ( const pwm_stepper& other ) = delete;
+
+    /** @name default destructor */
+    ~pwm_stepper () = default;
 
 
 
@@ -240,6 +264,12 @@ public:
      */
     gpio_stepper ( double _step_size, double _min_step_freq, int _step_pin, int _dir_pin, int _microstep_pin_0, int _microstep_pin_1, int _microstep_pin_2, int _sleep_pin, int _position_pin );
 
+    /** @name deleted copy constructor
+     * 
+     * @brief Copying is not allowed, since pins would have to be shared between devices.
+     */
+    gpio_stepper ( const gpio_stepper& other ) = delete;
+
     /** @name destructor
      * 
      * @brief Close and join the stepper thread.
@@ -257,6 +287,15 @@ public:
      * @return Nothing.
      */
     void set_position ( double angle, clock::duration duration );
+
+    /** @name  calibrate_position
+     * 
+     * @brief  Use the position pin to calibrate the position of the stepper.
+     * @param  angle: The angle at which the position pin will activate.
+     * @param  direction: The direction the motor should move in to hit the position pin. True for clockwise, false for anti-clockwise.
+     * @return Nothing.
+     */
+    void calibrate_position ( double angle, bool direction );
 
 
 
@@ -296,6 +335,17 @@ private:
 
     /* An atomic boolean telling the thread when to end */
     std::atomic_bool end_thread { false };
+
+
+
+    /** @name  make_step
+     * 
+     * @brief  Makes a single step assuming the motor has been previously enabled then modifies the current angle.
+     *         The stepper mutex should already be locked before this function is called.
+     * @param  microstep_size: The change in angle the step causes (negative for anti-clockwise)
+     * @return Nothing.
+     */
+    void make_step ( double microstep_size );
 
 
 

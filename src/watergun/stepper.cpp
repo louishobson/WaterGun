@@ -139,7 +139,7 @@ void watergun::stepper_base::enable_motor ( const int microstep_number, const bo
  * @param  pin: The pin to create the PWM object on.
  * @return The PWM object.
  */
-mraa::Pwm watergun::stepper_base::create_pwm ( int pin )
+mraa::Pwm watergun::stepper_base::create_pwm ( const int pin )
 {
     /* Create object from pin number */
     mraa::Pwm pwm { pin };
@@ -160,14 +160,36 @@ mraa::Pwm watergun::stepper_base::create_pwm ( int pin )
  * @param  pin: The pin to create the GPIO object on.
  * @return The GPIO object.
  */
-mraa::Gpio watergun::stepper_base::create_output_gpio ( int pin )
+mraa::Gpio watergun::stepper_base::create_output_gpio ( const int pin )
 {
     /* Create object from the pin number */
     mraa::Gpio gpio { pin };
 
     /* Set to output and write a 0 */
-    gpio.dir ( mraa::Dir::DIR_OUT );
+    gpio.dir ( mraa::DIR_OUT );
     gpio.write ( 0 );
+
+    /* Return the object */
+    return gpio;
+}
+
+
+
+/** @name  create_input_gpio
+ * 
+ * @brief  Create an input GPIO pin.
+ * @param  pin: The pin to create the GPIO object on.
+ * @param  mode: False for pull down, true for pull up.
+ * @return The GPIO object.
+ */
+mraa::Gpio watergun::stepper_base::create_input_gpio ( const int pin, const bool mode )
+{
+    /* Create object from the pin number */
+    mraa::Gpio gpio { pin };
+
+    /* Set to input and set pull up/down mode */
+    gpio.dir ( mraa::Dir::DIR_IN );
+    gpio.mode ( mode ? mraa::MODE_PULLUP : mraa::MODE_PULLDOWN );
 
     /* Return the object */
     return gpio;
@@ -195,7 +217,7 @@ watergun::pwm_stepper::pwm_stepper ( const double _step_size, const double _min_
     : stepper_base { _step_size, _min_step_freq, _step_pin, _dir_pin, _microstep_pin_0, _microstep_pin_1, _microstep_pin_2, _sleep_pin }
 {
     /* Initialize the PWM pin */
-    step_pwm.open ( step_pin );    
+    step_pwm = create_pwm ( step_pin );
 } catch ( const std::exception& e )
 {
     /* Rethrow, stating that stepper motor setup failed */
@@ -263,8 +285,8 @@ watergun::gpio_stepper::gpio_stepper ( const double _step_size, const double _mi
     : stepper_base { _step_size, _min_step_freq, _step_pin, _dir_pin, _microstep_pin_0, _microstep_pin_1, _microstep_pin_2, _sleep_pin }
 {
     /* Initialize the step and position GPIOs */
-    step_gpio.open ( step_pin );    
-    position_gpio.open ( position_pin );
+    step_gpio = create_output_gpio ( step_pin );
+    position_gpio = create_input_gpio ( position_pin, true );
 } catch ( const std::exception& e )
 {
     /* Rethrow, stating that stepper motor setup failed */
@@ -317,6 +339,51 @@ void watergun::gpio_stepper::set_position ( const double angle, const clock::dur
 
 
 
+/** @name  calibrate_position
+ * 
+ * @brief  Use the position pin to calibrate the position of the stepper.
+ * @param  angle: The angle at which the position pin will activate.
+ * @param  direction: The direction the motor should move in to hit the position pin. True for clockwise, false for anti-clockwise.
+ * @return Nothing.
+ */
+void watergun::gpio_stepper::calibrate_position ( const double angle, const bool direction )
+{
+    /* Create a lock on the mutex */
+    std::unique_lock<std::mutex> lock { stepper_mx };
+
+    /* Enable the motor to the maximum microstep number */
+    enable_motor ( availible_microstep_numbers.back (), direction );
+
+    /* While high, make a step */
+    while ( position_gpio.read () == 0 ) make_step ( step_size * std::exp2 ( availible_microstep_numbers.back () ) );
+
+    /* Set the angle */
+    current_angle = angle;
+}
+
+
+
+/** @name  make_step
+ * 
+ * @brief  Makes a single step assuming the motor has been previously enabled then modifies the current angle.
+ *         The stepper mutex should already be locked before this function is called.
+ * @param  microstep_size: The change in angle the step causes (negative for anti-clockwise)
+ * @return Nothing.
+ */
+void watergun::gpio_stepper::make_step ( const double microstep_size )
+{
+    /* Turn on the step GPIO, sleep for half the minimum period, then turn it back off, and sleep for the other half */
+    step_gpio.write ( 1 );
+    std::this_thread::sleep_for ( std::chrono::duration<double> { min_step_period / 2. } );
+    step_gpio.write ( 0 );
+    std::this_thread::sleep_for ( std::chrono::duration<double> { min_step_period / 2. } );
+
+    /* Modify the current angle */
+    current_angle += microstep_size;
+}
+
+
+
 /** @name  stepper_thread_function
  * 
  * @brief  The function which the stepper thread runs to control the motor movement.
@@ -342,32 +409,22 @@ void watergun::gpio_stepper::stepper_thread_function ()
         /* Get the microstepping number */
         int microstep_number = choose_microstep_number ( velocity );
 
-        /* Get the microstep size */
-        double microstep_size = step_size / std::exp2 ( microstep_number );
+        /* Get the microstep size (negative for anti-clockwise) */
+        double microstep_size = std::copysign ( step_size / std::exp2 ( microstep_number ), velocity );
 
         /* Get the period */
-        double period = std::max ( microstep_size / std::abs ( velocity ), min_step_period );
+        double period = std::max ( microstep_size / velocity, min_step_period );
 
         /* Get the number of steps required, and if there are none, continue */
-        required_steps = std::abs ( target_angle - current_angle ) / microstep_size;
+        required_steps = ( target_angle - current_angle ) / microstep_size;
         if ( required_steps == 0 ) continue;
 
         /* Enable the motor */
         enable_motor ( microstep_number, velocity > 0. );
 
-        /* Loop until all required steps are made, or the condition variable is notified */
-        do {
-            /* Turn on the step GPIO, sleep for half the minimum period, then turn it back off, and sleep for the other half */
-            step_gpio.write ( 1 );
-            std::this_thread::sleep_for ( std::chrono::duration<double> { min_step_period / 2. } );
-            step_gpio.write ( 0 );
-            std::this_thread::sleep_for ( std::chrono::duration<double> { min_step_period / 2. } );
-
-            /* Change the current angle */
-            if ( velocity > 0. ) current_angle += microstep_size; else current_angle -= microstep_size;
-
-            /* Break if all required steps have been made, or if the condition variable interrupts the rest of the period */
-        } while ( --required_steps != 0 && stepper_cv.wait_for ( lock, std::chrono::duration<double> { period - min_step_period } ) == std::cv_status::no_timeout );
+        /* Keep making steps, until they have all been made, or a new position is requirested (via the condition variable) */
+        do make_step ( microstep_size );
+        while ( --required_steps != 0 && stepper_cv.wait_for ( lock, std::chrono::duration<double> { period - min_step_period } ) == std::cv_status::no_timeout );
     }
 }
 
