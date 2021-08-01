@@ -23,7 +23,7 @@
 
 /** @name constructor
  * 
- * @brief Sets up controller, then begins controlling the servos.
+ * @brief Sets up controller, then begins controlling the motors.
  * @param _yaw_stepper: The yaw stepper motor to use.
  * @param _pitch_stepper: The pitch stepper motor to use.
  * @param _search_yaw_velocity: The yaw angular velocity in radians per second when searching for a user.
@@ -61,7 +61,7 @@ watergun::controller::controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pit
 
 /** @name destructor
  * 
- * @brief Gracefully releases control of the servos.
+ * @brief Gracefully releases control of the motors.
  */
 watergun::controller::~controller ()
 {
@@ -216,7 +216,7 @@ void watergun::controller::movement_planner_thread_function ()
             current_movement->timestamp = clock::now ();
             std::prev ( current_movement )->duration = current_movement->timestamp - std::prev ( current_movement )->timestamp;
 
-            /* Do servos */
+            /* Set stepper velocities and positions */
             yaw_stepper.set_velocity ( current_movement->yaw_rate );
             pitch_stepper.set_position ( current_movement->ending_pitch, current_movement->duration );
 

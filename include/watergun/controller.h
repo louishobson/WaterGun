@@ -6,7 +6,7 @@
  * 
  * include/watergun/controller.h
  * 
- * Header file for controlling the watergun servos.
+ * Header file for controlling the watergun motors.
  * 
  */
 
@@ -31,7 +31,7 @@ namespace watergun
 {
     /** class controller : aimer
      * 
-     * Controlls the signals to the servos.
+     * Controlls the signals to the motors.
      */
     class controller;    
 }
@@ -42,7 +42,7 @@ namespace watergun
 
 /** class controller : aimer
  * 
- * Controlls the signals to the servos.
+ * Controlls the signals to the motors.
  */
 class watergun::controller : public aimer
 {
@@ -51,7 +51,7 @@ public:
     
     /** @name constructor
      * 
-     * @brief Sets up controller, then begins controlling the servos.
+     * @brief Sets up controller, then begins controlling the motors.
      * @param _yaw_stepper: The yaw stepper motor to use.
      * @param _pitch_stepper: The pitch stepper motor to use.
      * @param _search_yaw_velocity: The yaw angular velocity in radians per second when searching for a user.
@@ -66,7 +66,7 @@ public:
 
     /** @name destructor
      * 
-     * @brief Gracefully releases control of the servos.
+     * @brief Gracefully releases control of the motors.
      */
     ~controller ();
 
