@@ -290,10 +290,25 @@ watergun::gpio_stepper::gpio_stepper ( const double _step_size, const double _mi
     /* Initialize the step and position GPIOs */
     step_gpio = create_output_gpio ( step_pin );
     position_gpio = create_input_gpio ( position_pin, true );
+
+    /* Start the thread */
+    stepper_thread = std::jthread { [ this ] ( std::stop_token stoken ) { stepper_thread_function ( std::move ( stoken ) ); } };
 } catch ( const std::exception& e )
 {
     /* Rethrow, stating that stepper motor setup failed */
     throw watergun_exception { std::string { "Stepper motor setup failed: " } + e.what () };
+}
+
+
+
+/** @name destructor
+ * 
+ * @brief Close and join the stepper thread.
+ */
+watergun::gpio_stepper::~gpio_stepper ()
+{
+    /* Join the thread */
+    if ( stepper_thread.joinable () ) { stepper_thread.request_stop (); stepper_thread.join (); }
 }
 
 
@@ -317,6 +332,7 @@ void watergun::gpio_stepper::set_position ( const double angle, const clock::dur
     /* Modify variables */
     target_angle = angle;
     target_transition_time = duration;
+    new_target = true;
 
     /* Notify and return */
     stepper_cv.notify_all ();
@@ -372,21 +388,19 @@ void watergun::gpio_stepper::make_step ( const double microstep_size )
 /** @name  stepper_thread_function
  * 
  * @brief  The function which the stepper thread runs to control the motor movement.
+ * @param  stoken: The stop token for the jthread.
  * @return Nothing.
  */
-void watergun::gpio_stepper::stepper_thread_function ()
+void watergun::gpio_stepper::stepper_thread_function ( std::stop_token stoken )
 {
     /* Create a lock on the mutex */
     std::unique_lock<std::mutex> lock { stepper_mx };
 
-    /* Remember the required steps */
-    int required_steps = 0;
-
-    /* Loop while should not be ending the thread */
-    while ( !end_thread )
+    /* Loop while the stop token is unset */
+    while ( !stoken.stop_requested () )
     {
-        /* Wait for new steps, since all of the previous ones were fully completed */
-        if ( required_steps == 0 ) { disable_motor (); stepper_cv.wait ( lock ); }
+        /* Set there to be no new target */
+        new_target = false;
 
         /* Calculate the required velocity */
         double velocity = watergun::clamp ( rate_of_change ( target_angle - current_angle, target_transition_time ), -max_velocity, +max_velocity );
@@ -401,15 +415,21 @@ void watergun::gpio_stepper::stepper_thread_function ()
         double period = std::max ( microstep_size / velocity, min_step_period );
 
         /* Get the number of steps required, and if there are none, continue */
-        required_steps = ( target_angle - current_angle ) / microstep_size;
-        if ( required_steps == 0 ) continue;
+        int required_steps = ( target_angle - current_angle ) / microstep_size;
+        
+        /* Do any steps */
+        if ( required_steps != 0 )
+        {
+            /* Enable the motor */
+            enable_motor ( microstep_number, velocity > 0. );
 
-        /* Enable the motor */
-        enable_motor ( microstep_number, velocity > 0. );
+            /* Keep making steps, until they have all been made, or a new position is requirested (via the condition variable) */
+            do make_step ( microstep_size );
+            while ( --required_steps != 0 && !stepper_cv.wait_for ( lock, stoken, std::chrono::duration<double> { period - min_step_period }, [ this, &stoken ] { return new_target || stoken.stop_requested (); } ) );
+        }
 
-        /* Keep making steps, until they have all been made, or a new position is requirested (via the condition variable) */
-        do make_step ( microstep_size );
-        while ( --required_steps != 0 && stepper_cv.wait_for ( lock, std::chrono::duration<double> { period - min_step_period } ) == std::cv_status::no_timeout );
+        /* Wait for new steps, if all of the previous ones were fully completed */
+        if ( required_steps == 0 ) { disable_motor (); stepper_cv.wait ( lock, stoken, [ this, &stoken ] { return new_target || stoken.stop_requested (); } ); }
     }
 }
 

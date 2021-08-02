@@ -327,15 +327,15 @@ private:
     /* The amount of time to make the transition */
     clock::duration target_transition_time { 0 };
 
+    /* Whether a new target has been set */
+    bool new_target { false };
+
     /* Mutex and condition variable for protecting the stepper variables */
     std::mutex stepper_mx;
-    std::condition_variable stepper_cv;
+    std::condition_variable_any stepper_cv;
 
     /* Thread for controlling stepper position */
-    std::thread stepper_thread;
-
-    /* An atomic boolean telling the thread when to end */
-    std::atomic_bool end_thread { false };
+    std::jthread stepper_thread;
 
 
 
@@ -353,9 +353,10 @@ private:
     /** @name  stepper_thread_function
      * 
      * @brief  The function which the stepper thread runs to control the motor movement.
+     * @param  stoken: The stop token for the jthread.
      * @return Nothing.
      */
-    void stepper_thread_function ();
+    void stepper_thread_function ( std::stop_token stoken );
 
 };
 
