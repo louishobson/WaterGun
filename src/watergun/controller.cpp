@@ -30,7 +30,7 @@
  * @param _water_rate: The velocity of the water leaving the watergun (depends on psi etc).
  * @param _air_resistance: Horizontal deceleration of the water, to model small amounts of air resistance.
  * @param _max_yaw_velocity: Maximum yaw angular velocity in radians per second.
- * @param _aim_period: The period of time in seconds with which to spire to be correctly aimed within.
+ * @param _aim_period: The period of time in seconds with which to aspire to be correctly aimed within.
  * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
