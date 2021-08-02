@@ -298,24 +298,6 @@ watergun::gpio_stepper::gpio_stepper ( const double _step_size, const double _mi
 
 
 
-/** @name destructor
- * 
- * @brief Close and join the stepper thread.
- */
-watergun::gpio_stepper::~gpio_stepper ()
-{
-    /* Aquire lock */
-    std::unique_lock<std::mutex> lock { stepper_mx };
-
-    /* Signal the thread to end, notify and unlock */
-    end_thread = true; stepper_cv.notify_all (); lock.unlock ();
-
-    /* Join the thread */
-    if ( stepper_thread.joinable () ) stepper_thread.join ();
-}
-
-
-
 /** @name  set_position
  * 
  * @brief  Set a desired position for the stepper, and a duration over which the transition to that position will be made.

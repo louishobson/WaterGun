@@ -179,37 +179,38 @@ public:
      */
     std::vector<tracked_user> get_tracked_users () const;
 
-    /** @name  wait_get_tracked_users
-     * 
-     * @brief  Wait for data on tracked users to update, then return an array of them. The timestamp and positions of the tracked users are projected to now.
-     * @return Vector of users.
-     */
-    std::vector<tracked_user> wait_get_tracked_users () const;
-
-    /** @name  wait_for_tracked_users
-     * 
-     * @brief  Wait on a timeout for new tracked users to become availible.
-     * @param  timeout: The duration to wait for or time point to wait until.
-     * @return True if new tracked users are availible, false otherwise.
-     */
-    bool wait_for_tracked_users ( clock::duration timeout ) const;
-    bool wait_for_tracked_users ( clock::time_point timeout ) const;
-
-    /** @name  wait_for_present_tracked_users
-     * 
-     * @brief  Wait on a timeout for new tracked users to become availible and where there is at least one user present.
-     * @param  timeout: The duration to wait for or time point to wait until.
-     * @return True if new tracked users are availible, false otherwise.
-     */
-    bool wait_for_present_tracked_users ( clock::duration timeout ) const;
-    bool wait_for_present_tracked_users ( clock::time_point timeout ) const;
-
     /** @name  get_average_generation_time
      * 
      * @brief  Get the average time taken to generate depth data.
      * @return The average duration.
      */
     clock::duration get_average_generation_time () const;
+
+    /** @name  wait_for_tracked_users
+     * 
+     * @brief  Wait on a timeout for new tracked users to become availible.
+     * @param  timeout: The duration to wait for or time point to wait until.
+     * @param  stoken: A stop token to cause a stop to waiting.
+     * @param  frameid: A pointer to the ID of the last frame recieved by the caller. If there is already a more recent frame, this function will return immediately.
+     *                  Frameid will also be updated to the ID of the frame just received.
+     * @return True if new tracked users are availible, false otherwise.
+     */
+    bool wait_for_tracked_users ( std::stop_token stoken = std::stop_token {}, int * frameid = nullptr ) const;
+    bool wait_for_tracked_users ( clock::duration timeout, std::stop_token stoken = std::stop_token {}, int * frameid = nullptr ) const;
+    bool wait_for_tracked_users ( clock::time_point timeout, std::stop_token stoken = std::stop_token {}, int * frameid = nullptr ) const;
+
+    /** @name  wait_for_detected_tracked_users
+     * 
+     * @brief  Wait on a timeout for new tracked users to become availible and where there is at least one user detected.
+     * @param  timeout: The duration to wait for or time point to wait until.
+     * @param  stoken: A stop token to cause a stop to waiting.
+     * @param  frameid: A pointer to the ID of the last frame recieved by the caller. If there is already a more recent frame, this function will return immediately.
+     *                  Frameid will also be updated to the ID of the frame just received.
+     * @return True if new tracked users are availible, false otherwise.
+     */
+    bool wait_for_detected_tracked_users ( std::stop_token stoken = std::stop_token {}, int * frameid = nullptr ) const;
+    bool wait_for_detected_tracked_users ( clock::duration timeout, std::stop_token stoken = std::stop_token {}, int * frameid = nullptr ) const;
+    bool wait_for_detected_tracked_users ( clock::time_point timeout, std::stop_token stoken = std::stop_token {}, int * frameid = nullptr ) const;
 
 
 
@@ -289,12 +290,13 @@ private:
     /* The average computation time for the user generator */
     clock::duration average_generation_time { 0 };
 
-    /* A counter for re-syncing the clock in frames */
-    int clock_sync_counter { clock_sync_period };
+    /* The global and detected frameid */
+    int global_frameid { 1 }, detected_frameid { 1 };
 
     /* A mutex and condition variable to protect tracked_users */
     mutable std::mutex tracked_users_mx;
-    mutable std::condition_variable tracked_users_cv;
+    mutable std::condition_variable_any tracked_users_cv;
+    mutable std::condition_variable_any detected_tracked_users_cv;
 
 
 

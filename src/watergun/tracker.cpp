@@ -122,80 +122,6 @@ std::vector<watergun::tracker::tracked_user> watergun::tracker::get_tracked_user
 
 
 
-/** @name  wait_get_tracked_users
- * 
- * @brief  Wait for data on tracked users to update, then return an array of them. The timestamp and positions of the tracked users are projected to now.
- * @return Vector of users.
- */
-std::vector<watergun::tracker::tracked_user> watergun::tracker::wait_get_tracked_users () const
-{
-    /* Lock the mutex, wait on the condition variable, copy the tracked users, then unlock */
-    std::unique_lock<std::mutex> lock { tracked_users_mx };
-    tracked_users_cv.wait ( lock );
-    auto tracked_users_copy = tracked_users;
-    lock.unlock ();
-
-    /* Update their positions */
-    for ( tracked_user& user : tracked_users_copy ) user = dynamic_project_tracked_user ( user );
-
-    /* Return the tracked users */
-    return tracked_users_copy;
-}
-
-
-
-/** @name  wait_for_tracked_users
- * 
- * @brief  Wait on a timeout for new tracked users to become availible.
- * @param  timeout: The duration to wait for or time point to wait until.
- * @return True if new tracked users are availible, false otherwise.
- */
-bool watergun::tracker::wait_for_tracked_users ( const clock::duration timeout ) const
-{
-    /* Call the time point version */
-    return wait_for_tracked_users ( clock::now () + timeout );
-}
-bool watergun::tracker::wait_for_tracked_users ( const clock::time_point timeout ) const
-{
-    /* Lock the mutex, wait on the condition variable and return true iff the wait does not time out */
-    std::unique_lock<std::mutex> lock { tracked_users_mx };
-    return tracked_users_cv.wait_until ( lock, timeout ) == std::cv_status::no_timeout;   
-}
-
-
-
-/** @name  wait_for_present_tracked_users
- * 
- * @brief  Wait on a timeout for new tracked users to become availible and where there is at least one user present.
- * @param  timeout: The duration to wait for or time point to wait until.
- * @return True if new tracked users are availible, false otherwise.
- */
-bool watergun::tracker::wait_for_present_tracked_users ( const clock::duration timeout ) const
-{
-    /* Call the time point version */
-    return wait_for_tracked_users ( clock::now () + timeout );
-}
-bool watergun::tracker::wait_for_present_tracked_users ( clock::time_point timeout ) const
-{
-    /* Lock the mutex */
-    std::unique_lock<std::mutex> lock { tracked_users_mx };
-
-    /* If there are currently tracked users, wait without a predicate for there to be no users present */
-    if ( tracked_users.size () )
-    {
-        /* Wait on the condition variable and return false if it times out */
-        if ( tracked_users_cv.wait_until ( lock, timeout ) == std::cv_status::timeout ) return false;
-        
-        /* It did not time out, so return true if there are now users present */
-        else if ( tracked_users.size () ) return true;
-    }
-
-    /* Otherwise wait with a predicate, and return whether there are any present users */
-    return tracked_users_cv.wait_until ( lock, timeout, [ this ] () { return tracked_users.size (); } ); 
-}
-
-
-
 /** @name  get_average_generation_time
  * 
  * @brief  Get the average time taken to generate depth data.
@@ -206,6 +132,81 @@ watergun::tracker::clock::duration watergun::tracker::get_average_generation_tim
     /* Lock the mutex and return the value */
     std::unique_lock<std::mutex> lock { tracked_users_mx };
     return average_generation_time;
+}
+
+
+
+
+/** @name  wait_for_tracked_users
+ * 
+ * @brief  Wait on a timeout for new tracked users to become availible.
+ * @param  timeout: The duration to wait for or time point to wait until.
+ * @param  stoken: A stop token to cause a stop to waiting.
+ * @param  frameid: A pointer to the ID of the last frame recieved by the caller. If there is already a more recent frame, this function will return immediately.
+ *                  Frameid will also be updated to the ID of the frame just received.
+ * @return True if new tracked users are availible, false otherwise.
+ */
+bool watergun::tracker::wait_for_tracked_users ( std::stop_token stoken, int * frameid ) const
+{
+    /* Call the timepoint version */
+    return wait_for_tracked_users ( clock::time_point::max (), std::move ( stoken ), frameid );
+}
+bool watergun::tracker::wait_for_tracked_users ( clock::duration timeout, std::stop_token stoken, int * frameid ) const
+{
+    /* Call the timepoint version */
+    return wait_for_tracked_users ( clock::now () + timeout, std::move ( stoken ), frameid );
+}
+bool watergun::tracker::wait_for_tracked_users ( clock::time_point timeout, std::stop_token stoken, int * frameid ) const
+{
+    /* Lock the mutex */
+    std::unique_lock<std::mutex> lock { tracked_users_mx };
+
+    /* If frameid is null, create a new variable for it to point to, which is equal to the current frameid */
+    int alt_frameid = global_frameid;
+    if ( !frameid ) frameid = &alt_frameid;
+
+    /* Wait for a new frame to become availible */
+    tracked_users_cv.wait_until ( lock, stoken, timeout, [ this, &stoken, frameid ] { return ( frameid && * frameid < global_frameid ) || stoken.stop_requested (); } );
+
+    /* Update the frameid and return */
+    if ( * frameid < global_frameid ) return ( * frameid = global_frameid ); else return false;
+}
+
+
+
+/** @name  wait_for_detected_tracked_users
+ * 
+ * @brief  Wait on a timeout for new tracked users to become availible and where there is at least one user detected.
+ * @param  timeout: The duration to wait for or time point to wait until.
+ * @param  stoken: A stop token to cause a stop to waiting.
+ * @param  frameid: A pointer to the ID of the last frame recieved by the caller. If there is already a more recent frame, this function will return immediately.
+ *                  Frameid will also be updated to the ID of the frame just received.
+ * @return True if new tracked users are availible, false otherwise.
+ */
+bool watergun::tracker::wait_for_detected_tracked_users ( std::stop_token stoken, int * frameid ) const
+{
+    /* Call the timepoint version */
+    return wait_for_tracked_users ( clock::time_point::max (), std::move ( stoken ), frameid );
+}
+bool watergun::tracker::wait_for_detected_tracked_users ( clock::duration timeout, std::stop_token stoken, int * frameid ) const
+{
+    /* Call the timepoint version */
+    return wait_for_tracked_users ( clock::now () + timeout, std::move ( stoken ), frameid );
+}
+bool watergun::tracker::wait_for_detected_tracked_users ( clock::time_point timeout, std::stop_token stoken, int * frameid ) const
+{
+    /* Lock the mutex */
+    std::unique_lock<std::mutex> lock { tracked_users_mx };
+
+    /* If frameid is null, create a new variable for it to point to, which is equal to the current frameid */
+    int alt_frameid = detected_frameid;
+    if ( !frameid ) frameid = &alt_frameid;
+
+    /* Wait for a new frame to become availible */
+    detected_tracked_users_cv.wait_until ( lock, stoken, timeout, [ this, &stoken, frameid ] { return * frameid < detected_frameid || stoken.stop_requested (); } );
+
+    /* Update the frameid and return */
+    if ( * frameid < detected_frameid ) return ( * frameid = detected_frameid ); else return false;
 }
 
 
@@ -282,12 +283,16 @@ void watergun::tracker::onNewFrame ( nite::UserTracker& )
         new_tracked_users.push_back ( user );
     }
 
-    /* Update the tracked users with the new array and notify the condition variable */
+    /* Update the tracked users with the new array */
     tracked_users = std::move ( new_tracked_users );
-    tracked_users_cv.notify_all ();
 
-    /* Possibly sync clocks */
-    if ( --clock_sync_counter == 0 ) sync_clocks ();
+    /* Increment the frame IDs and possibly resync clocks */
+    if ( ++global_frameid % clock_sync_period == 0 ) sync_clocks ();
+    if ( tracked_users.size () ) ++detected_frameid;
+
+    /* Notify the condition variables */
+    tracked_users_cv.notify_all ();
+    if ( tracked_users.size () ) detected_tracked_users_cv.notify_all ();
 }
 
 
@@ -313,9 +318,6 @@ void watergun::tracker::sync_clocks ()
 
     /* Stop the depth stream */
     depth_stream.stop ();
-
-    /* Set the sync counter */
-    clock_sync_counter = clock_sync_period;
 }
 
 
