@@ -230,7 +230,11 @@ watergun::pwm_stepper::pwm_stepper ( const double _step_size, const double _min_
  * 
  * @brief A stepper_base object should be abstract.
  */
-watergun::stepper_base::~stepper_base () {};
+watergun::stepper_base::~stepper_base ()
+{
+    /* Disable the motor */
+    disable_motor ();
+}
 
 
 
