@@ -263,7 +263,7 @@ public:
      * @param _sleep_pin: The pin number for motor sleep control, or -1 for not present.
      * @param _position_pin: The pin number which provides stepper positioning capabilities, or -1 for not present.
      */
-    gpio_stepper ( double _step_size, double _min_step_freq, double _max_velocitt, int _step_pin, int _dir_pin, int _microstep_pin_0, int _microstep_pin_1, int _microstep_pin_2, int _sleep_pin, int _position_pin );
+    gpio_stepper ( double _step_size, double _min_step_freq, double _max_velocity, int _step_pin, int _dir_pin, int _microstep_pin_0, int _microstep_pin_1, int _microstep_pin_2, int _sleep_pin, int _position_pin );
 
     /** @name deleted copy constructor
      * 
