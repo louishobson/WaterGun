@@ -146,19 +146,17 @@ private:
 
 
     /* A thread to handle the updating of the movement plan */
-    std::thread controller_thread;
-
-    /* An atomic boolean telling threads when to end */
-    std::atomic_bool end_threads { false };
+    std::jthread controller_thread;
 
 
 
     /** @name  movement_planner_thread_function
      * 
      * @brief  Function run by controller_thread. Continuously updates movement_plan, and notifies the condition variable.
+     * @param  stoken: The stop token for the jthread.
      * @return Nothing.
      */
-    void movement_planner_thread_function ();
+    void movement_planner_thread_function ( std::stop_token stoken );
 
 };
 

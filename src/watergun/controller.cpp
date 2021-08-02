@@ -54,7 +54,7 @@ watergun::controller::controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pit
     std::this_thread::sleep_for ( std::chrono::milliseconds { 100 } );
 
     /* Start the movement planner thread */
-    controller_thread = std::thread ( &watergun::controller::movement_planner_thread_function, this );
+    controller_thread = std::jthread { [ this ] ( std::stop_token stoken ) { movement_planner_thread_function ( std::move ( stoken ) ); } };
 }
 
 
@@ -65,11 +65,8 @@ watergun::controller::controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pit
  */
 watergun::controller::~controller ()
 {
-    /* Set the end thread flag to true */
-    end_threads = true;
-
-    /* If any threads are running, join them */
-    if ( controller_thread.joinable () ) controller_thread.join ();
+    /* Join the thread */
+    if ( controller_thread.joinable () ) { controller_thread.request_stop (); controller_thread.join (); }
 }
 
 
@@ -180,15 +177,19 @@ watergun::controller::tracked_user watergun::controller::dynamic_project_tracked
 /** @name  movement_planner_thread_function
  * 
  * @brief  Function run by controller_thread. Continuously updates movement_plan, and notifies the condition variable.
+ * @param  stoken: The stop token for the jthread.
  * @return Nothing.
  */
-void watergun::controller::movement_planner_thread_function ()
+void watergun::controller::movement_planner_thread_function ( std::stop_token stoken )
 {
-    /* Wait for tracked users */
-    wait_for_tracked_users ( large_duration );
+    /* The last frameid */
+    int frameid = 0;
+
+    /* Wait for detected tracked users */
+    wait_for_detected_tracked_users ( stoken, &frameid );
 
     /* Loop while not signalled to end */
-    while ( !end_threads )
+    while ( !stoken.stop_requested () )
     {
         /* Get tracked users and choose a target. If there is no target, notify and continue. */
         tracked_user target = choose_target ( get_tracked_users () );
@@ -208,6 +209,9 @@ void watergun::controller::movement_planner_thread_function ()
 
         /* Update the motors for every new movement */
         do {
+            /* Lock the mutex if not already locked */
+            if ( !lock.owns_lock () ) lock.lock ();
+
             /* Increment the current movement */
             std::advance ( current_movement, 1 );
 
@@ -219,10 +223,10 @@ void watergun::controller::movement_planner_thread_function ()
             yaw_stepper.set_velocity ( current_movement->yaw_rate );
             pitch_stepper.set_position ( current_movement->ending_pitch, current_movement->duration );
 
-            /* Notify */
-            movement_cv.notify_all ();
+            /* Notify and unlock */
+            movement_cv.notify_all (); lock.unlock ();
 
             /* Break if new tracked user data is availible */
-        } while ( !wait_for_present_tracked_users ( current_movement->duration ) );
+        } while ( !wait_for_detected_tracked_users ( current_movement->duration, stoken, &frameid ) && !stoken.stop_requested () );
     }
 }
