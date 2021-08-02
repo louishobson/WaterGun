@@ -85,21 +85,6 @@ std::list<watergun::controller::single_movement> watergun::controller::get_movem
 
 
 
-/** @name  wait_get_movement_plan
- * 
- * @brief  Waits for the movement plan to update, then returns it.
- * @return The movement plan.
- */
-std::list<watergun::controller::single_movement> watergun::controller::wait_get_movement_plan () const
-{
-    /* Aquire the lock, wait on the condition variable, then return the list */
-    std::unique_lock<std::mutex> lock { movement_mx };
-    movement_cv.wait ( lock );
-    return movement_plan;
-}
-
-
-
 /** @name  get_current_movement
  * 
  * @brief  Immediately returns the current movement.
@@ -109,21 +94,6 @@ watergun::controller::single_movement watergun::controller::get_current_movement
 {
     /* Lock the mutex and return the current movement */
     std::unique_lock<std::mutex> lock { movement_mx };
-    return * current_movement;
-}
-
-
-
-/** @name  wait_get_current_movement
- * 
- * @brief  Waits for the movement plan to update, then returns the current movement.
- * @return The single movement.
- */
-watergun::controller::single_movement watergun::controller::wait_get_current_movement () const
-{
-    /* Lock the mutex, wait on the condition variable and return the current movement */
-    std::unique_lock<std::mutex> lock { movement_mx };
-    movement_cv.wait ( lock );
     return * current_movement;
 }
 

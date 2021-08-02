@@ -79,13 +79,6 @@ public:
      */
     std::list<single_movement> get_movement_plan () const;
 
-    /** @name  wait_get_movement_plan
-     * 
-     * @brief  Waits for the movement plan to update, then returns it.
-     * @return The movement plan.
-     */
-    std::list<single_movement> wait_get_movement_plan () const;
-
 
 
     /** @name  get_current_movement
@@ -94,13 +87,6 @@ public:
      * @return The single movement.
      */
     single_movement get_current_movement () const;
-
-    /** @name  wait_get_current_movement
-     * 
-     * @brief  Waits for the movement plan to update, then returns the current movement.
-     * @return The single movement.
-     */
-    single_movement wait_get_current_movement () const;
 
 
 
