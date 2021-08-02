@@ -122,9 +122,8 @@ private:
     /* An iterator to the current movement being applied */
     std::list<single_movement>::iterator current_movement;
 
-    /* A mutex and condition variable to protect and notify for the movement plan and iterator */
+    /* A mutex to protect the movement plan and iterator */
     mutable std::mutex movement_mx;
-    mutable std::condition_variable movement_cv;
 
     /* The number of future single movements to store in the movement plan */
     int num_future_movements;

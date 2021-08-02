@@ -161,9 +161,9 @@ void watergun::controller::movement_planner_thread_function ( std::stop_token st
     /* Loop while not signalled to end */
     while ( !stoken.stop_requested () )
     {
-        /* Get tracked users and choose a target. If there is no target, notify and continue. */
+        /* Get tracked users and choose a target. If there is no target, continue. */
         tracked_user target = choose_target ( get_tracked_users () );
-        if ( target.com == vector3d {} ) { movement_cv.notify_all (); continue; }
+        if ( target.com == vector3d {} ) continue;
 
         /* Lock the mutex */
         std::unique_lock<std::mutex> lock { movement_mx };
@@ -192,9 +192,6 @@ void watergun::controller::movement_planner_thread_function ( std::stop_token st
             /* Set stepper velocities and positions */
             yaw_stepper.set_velocity ( current_movement->yaw_rate );
             pitch_stepper.set_position ( current_movement->ending_pitch, current_movement->duration );
-
-            /* Notify and unlock */
-            movement_cv.notify_all (); lock.unlock ();
 
             /* Break if new tracked user data is availible */
         } while ( !wait_for_detected_tracked_users ( current_movement->duration, stoken, &frameid ) && !stoken.stop_requested () );
