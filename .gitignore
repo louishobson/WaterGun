@@ -34,8 +34,9 @@
 # VSCode Preferences
 .vscode
 
-# Test Binary
+# Binaries
 test
+main
 
 # SVGs and Backup Freecad
 *.svg
