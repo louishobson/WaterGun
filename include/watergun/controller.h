@@ -73,15 +73,6 @@ public:
 
 
 
-    /** @name  get_movement_plan.
-     * 
-     * @brief  Immediately returns the current movement plan.
-     * @return The movement plan.
-     */
-    std::list<single_movement> get_movement_plan () const;
-
-
-
     /** @name  get_current_movement
      * 
      * @brief  Immediately returns the current movement.

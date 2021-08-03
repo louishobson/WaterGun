@@ -72,20 +72,6 @@ watergun::controller::~controller ()
 
 
 
-/** @name  get_movement_plan.
- * 
- * @brief  Immediately returns the current movement plan.
- * @return The movement plan.
- */
-std::list<watergun::controller::single_movement> watergun::controller::get_movement_plan () const
-{
-    /* Aquire the lock, then return the list */
-    std::unique_lock<std::mutex> lock { movement_mx };
-    return movement_plan;
-}
-
-
-
 /** @name  get_current_movement
  * 
  * @brief  Immediately returns the current movement.
