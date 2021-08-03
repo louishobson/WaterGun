@@ -20,7 +20,7 @@ OBJ=src/watergun/tracker.o src/watergun/aimer.o src/watergun/controller.o src/wa
 # all
 #
 # make libraries and binary
-all: test main
+all: main
 
 # clean
 #
@@ -34,12 +34,6 @@ clean:
 
 
 # COMPILATION TARGETS
-
-# test
-#
-# compile test binary
-test: $(OBJ) test.o
-	$(CPP) $(CPPFLAGS) $(OBJ) test.o -o test
 
 # main
 #
