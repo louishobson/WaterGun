@@ -58,11 +58,12 @@ public:
      * @param _water_rate: The velocity of the water leaving the watergun (depends on psi etc).
      * @param _air_resistance: Horizontal deceleration of the water, to model small amounts of air resistance.
      * @param _max_yaw_velocity: Maximum yaw angular velocity in radians per second.
+     * @param _max_yaw_acceleration: Maximum yaw angular acceleration in radians per second squared.
      * @param _aim_period: The period of time in seconds with which to aspire to be correctly aimed within.
      * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pitch_stepper, float _search_yaw_velocity, float _water_rate, float _air_resistance, float _max_yaw_velocity, clock::duration _aim_period = clock::duration { 0 }, vector3d _camera_offset = vector3d {} );
+    controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pitch_stepper, double _search_yaw_velocity, double _water_rate, double _air_resistance, double _max_yaw_velocity, double _max_yaw_acceleration, clock::duration _aim_period = clock::duration { 0 }, vector3d _camera_offset = vector3d {} );
 
     /** @name destructor
      * 
@@ -104,7 +105,7 @@ public:
 protected:
 
     /* The angular velocity when searching for users */
-    float search_yaw_velocity;
+    double search_yaw_velocity;
 
 
 

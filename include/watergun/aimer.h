@@ -54,7 +54,7 @@ public:
      * 
      * The position of the watergun in terms of yaw and pitch in radians.
      */
-    struct gun_position { float yaw, pitch; };
+    struct gun_position { double yaw, pitch; };
 
     /** struct single_movement
      * 
@@ -70,10 +70,10 @@ public:
         clock::time_point timestamp;
 
         /* The rate of change of yaw during this movement */
-        float yaw_rate;
+        double yaw_rate;
 
         /* The exact pitch to end with at the end of this movement */
-        float ending_pitch;
+        double ending_pitch;
     };
 
 
@@ -84,11 +84,12 @@ public:
      * @param _water_rate: The velocity of the water leaving the watergun (depends on psi etc).
      * @param _air_resistance: Horizontal deceleration of the water, to model small amounts of air resistance.
      * @param _max_yaw_velocity: Maximum yaw angular velocity in radians per second.
+     * @param _max_yaw_acceleration: Maximum yaw angular acceleration in radians per second squared.
      * @param _aim_period: The period of time in seconds with which to aspire to be correctly aimed within. Defaults to the length of a frame, if set to 0 duration.
      * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    aimer ( float _water_rate, float _air_resistance, float _max_yaw_velocity, clock::duration _aim_period = clock::duration { 0 }, vector3d _camera_offset = vector3d {} );
+    aimer ( double _water_rate, double _air_resistance, double _max_yaw_velocity, double _max_yaw_acceleration, clock::duration _aim_period = clock::duration { 0 }, vector3d _camera_offset = vector3d {} );
 
     /** @name destructor
      * 
@@ -102,7 +103,7 @@ public:
      * 
      * @brief  From a tracked user, find the yaw and pitch the watergun must shoot to hit the user for the given water velocity.
      * @param  user: The user to aim at.
-     * @return A gun position, or NaN for both yaw and pitch if it is not possible to hit the user.
+     * @return A gun position. If the user cannot be hit, yaw is set to the user's angle, and pitch is set to 45 degrees.
      */
     gun_position calculate_aim ( const tracked_user& user ) const;
 
@@ -129,13 +130,13 @@ public:
 protected:
 
     /* The water velocity */
-    float water_rate;
+    double water_rate;
 
     /* Horizontal deceleration of water */
-    float air_resistance;
+    double air_resistance;
 
-    /* Maximum yaw angular velocity in radians per second */
-    float max_yaw_velocity;
+    /* Maximum yaw angular velocity and acceleration */
+    double max_yaw_velocity, max_yaw_acceleration;
 
     /* The period of time with which the gun should aspire to be aiming at a user within */
     clock::duration aim_period;

@@ -30,12 +30,13 @@
  * @param _water_rate: The velocity of the water leaving the watergun (depends on psi etc).
  * @param _air_resistance: Horizontal deceleration of the water, to model small amounts of air resistance.
  * @param _max_yaw_velocity: Maximum yaw angular velocity in radians per second.
+ * @param _max_yaw_acceleration: Maximum yaw angular acceleration in radians per second squared.
  * @param _aim_period: The period of time in seconds with which to aspire to be correctly aimed within.
  * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
-watergun::controller::controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pitch_stepper, const float _search_yaw_velocity, const float _water_rate, const float _air_resistance, const float _max_yaw_velocity, const clock::duration _aim_period, const vector3d _camera_offset )
-    : aimer ( _water_rate, _air_resistance, _max_yaw_velocity, _aim_period, _camera_offset )
+watergun::controller::controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pitch_stepper, const double _search_yaw_velocity, const double _water_rate, const double _air_resistance, const double _max_yaw_velocity, const double _max_yaw_acceleration, const clock::duration _aim_period, const vector3d _camera_offset )
+    : aimer ( _water_rate, _air_resistance, _max_yaw_velocity, _max_yaw_acceleration, _aim_period, _camera_offset )
     , yaw_stepper { _yaw_stepper }
     , pitch_stepper { _pitch_stepper }
     , search_yaw_velocity { _search_yaw_velocity }
@@ -118,7 +119,7 @@ watergun::controller::tracked_user watergun::controller::dynamic_project_tracked
     auto movement_it = current_movement; while ( movement_it->timestamp > early_timestamp ) --movement_it;
 
     /* Iterate over the movements, adding up the change in yaw, until the late timestamp is met. */
-    float delta_yaw = 0.; do
+    double delta_yaw = 0.; do
     {
         /* Get the duration within the early and late times, that this movement occured */
         const clock::duration movement_duration = 

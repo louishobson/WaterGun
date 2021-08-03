@@ -27,15 +27,17 @@
  * @param _water_rate: The velocity of the water leaving the watergun (depends on psi etc).
  * @param _air_resistance: Horizontal deceleration of the water, to model small amounts of air resistance.
  * @param _max_yaw_velocity: Maximum yaw angular velocity in radians per second.
+ * @param _max_yaw_acceleration: Maximum yaw angular acceleration in radians per second squared.
  * @param _aim_period: The period of time in seconds with which to aspire to be correctly aimed within. Defaults to the length of a frame.
  * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
-watergun::aimer::aimer ( const float _water_rate, const float _air_resistance, const float _max_yaw_velocity, const clock::duration _aim_period, const vector3d _camera_offset )
+watergun::aimer::aimer ( const double _water_rate, const double _air_resistance, const double _max_yaw_velocity, const double _max_yaw_acceleration, const clock::duration _aim_period, const vector3d _camera_offset )
     : tracker { _camera_offset }
     , water_rate { _water_rate }
     , air_resistance { _air_resistance }
     , max_yaw_velocity { _max_yaw_velocity }
+    , max_yaw_acceleration { _max_yaw_acceleration }
     , aim_period { _aim_period }
 {
     /* If the aim period is 0, update it to the length of a frame */
@@ -48,7 +50,7 @@ watergun::aimer::aimer ( const float _water_rate, const float _air_resistance, c
  * 
  * @brief  From a tracked user, find the yaw and pitch the watergun must shoot to hit the user for the given water velocity.
  * @param  user: The user to aim at.
- * @return A gun position, or NaN for both yaw and pitch if it is not possible to hit the user.
+ * @return A gun position. If the user cannot be hit, yaw is set to the user's angle, and pitch is set to 45 degrees.
  */
 watergun::aimer::gun_position watergun::aimer::calculate_aim ( const tracked_user& user ) const
 {
@@ -63,11 +65,11 @@ watergun::aimer::gun_position watergun::aimer::calculate_aim ( const tracked_use
     );
 
     /* Look for two real positive roots */
-    float time = INFINITY;
+    double time = INFINITY;
     for ( const auto& root : roots ) if ( std::abs ( root.imag () ) < 1e-6 && root.real () > 0. && root.real () < time ) time = root.real ();
 
-    /* If time is still infinity, there are no solutions, so return NaN */
-    if ( time == INFINITY ) return { std::nanf ( "" ), std::nanf ( "" ) };
+    /* If time is still infinity, there are no solutions, so return the user's position and 45 degrees */
+    if ( time == INFINITY ) return { user.com.x, M_PI / 4. };
 
     /* Else produce the angles */
     return { user.com.x + user.com_rate.x * time, std::asin ( ( user.com.y + user.com_rate.y * time + 4.905f * time * time ) / ( water_rate * time ) ) };
@@ -124,7 +126,7 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
     std::list<single_movement> future_movements;
 
     /* Store the change in yaw over the loop */
-    float delta_yaw = 0.;
+    double delta_yaw = 0.;
 
     /* Loop through n */
     for ( int i = 0; i < n; ++i )
@@ -139,7 +141,7 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
         if ( std::isnan ( aim.yaw ) ) break; aim.yaw -= delta_yaw;
 
         /* Calculate the yaw rate */
-        float yaw_rate = watergun::clamp ( rate_of_change ( aim.yaw, aim_period ), -max_yaw_velocity, +max_yaw_velocity );
+        double yaw_rate = watergun::clamp ( rate_of_change ( aim.yaw, aim_period ), -max_yaw_velocity, +max_yaw_velocity );
 
         /* Add the single movement */
         future_movements.push_back ( single_movement { aim_period, user.timestamp, yaw_rate, aim.pitch } );

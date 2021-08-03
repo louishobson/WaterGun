@@ -38,9 +38,9 @@
 
 namespace watergun
 {
-    /** struct vector3d : nite::Point3f
+    /** struct vector3d
      * 
-     * Wrapper for nite::Point3f, but with overloaded operations.
+     * 3D vector class.
      */
     struct vector3d;
 
@@ -57,24 +57,29 @@ namespace watergun
 
 
 
-/** struct vector3d : nite::Point3f
+/** struct vector3d
  * 
- * Wrapper for nite::Point3f, but with overloaded operations.
+ * 3D vector class.
  */
-struct watergun::vector3d : public nite::Point3f
+struct watergun::vector3d
 {
+    /* X, Y and Z components */
+    double x, y, z;
+
+
+
     /** @name default construction
      * 
      * @brief Initialize all components to 0.
      */
-    vector3d () noexcept : Point3f { 0., 0., 0. } {}
+    constexpr vector3d () noexcept : x { 0. }, y { 0. }, z { 0. } {}
 
     /** @name single components constructor
      * 
      * @brief Initialize all components to the same value.
      * @param v: The value to initialize the components to.
      */
-    explicit vector3d ( float v ) noexcept : Point3f { v, v, v } {}
+    explicit constexpr vector3d ( double v ) noexcept : x { v }, y { v }, z { v } {}
 
     /** @name three component constructor
      * 
@@ -83,30 +88,42 @@ struct watergun::vector3d : public nite::Point3f
      * @param y: Y value.
      * @param z: Z value.
      */
-    vector3d ( float x, float y, float z ) noexcept : Point3f { x, y, z } {}
+    constexpr vector3d ( double _x, double _y, double _z ) noexcept : x { _x }, y { _y }, z { _z } {}
 
     /** @name Point3f constructor
      * 
      * @brief Construct from nite::Point3f object.
      * @param v: The Point3f object.
      */
-    vector3d ( const Point3f& v ) noexcept : Point3f { v } {}
+    constexpr vector3d ( const nite::Point3f& v ) noexcept : x { v.x }, y { v.y }, z { v.z } {}
+
+    /** @name Point3f explicit conversion
+     * 
+     * @brief Construct from nite::Point3f object.
+     * @param v: The Point3f object.
+     */
+    explicit operator nite::Point3f () noexcept { return nite::Point3f { x, y, z }; }
 
 
 
     /* Simple arithmetic operations */
-    vector3d operator+ ( const vector3d& other ) const noexcept { return vector3d { x + other.x, y + other.y, z + other.z }; }
-    vector3d operator- ( const vector3d& other ) const noexcept { return vector3d { x - other.x, y - other.y, z - other.z }; }
-    vector3d operator* ( const vector3d& other ) const noexcept { return vector3d { x * other.x, y * other.y, z * other.z }; }
-    vector3d operator/ ( const vector3d& other ) const noexcept { return vector3d { x / other.x, y / other.y, z / other.z }; }
-    vector3d& operator+= ( const vector3d& other ) noexcept { return * this = * this + other; }
-    vector3d& operator-= ( const vector3d& other ) noexcept { return * this = * this - other; }
-    vector3d& operator*= ( const vector3d& other ) noexcept { return * this = * this * other; }
-    vector3d& operator/= ( const vector3d& other ) noexcept { return * this = * this / other; }
-    vector3d operator* ( float scalar ) const noexcept { return * this * vector3d { scalar }; }
-    vector3d operator/ ( float scalar ) const noexcept { return * this / vector3d { scalar }; }
-    vector3d& operator*= ( float scalar ) noexcept { return * this = * this * scalar; }
-    vector3d& operator/= ( float scalar ) noexcept { return * this = * this / scalar; }
+    constexpr vector3d operator+ ( const vector3d& other ) const noexcept { return vector3d { x + other.x, y + other.y, z + other.z }; }
+    constexpr vector3d operator- ( const vector3d& other ) const noexcept { return vector3d { x - other.x, y - other.y, z - other.z }; }
+    constexpr vector3d operator* ( const vector3d& other ) const noexcept { return vector3d { x * other.x, y * other.y, z * other.z }; }
+    constexpr vector3d operator/ ( const vector3d& other ) const noexcept { return vector3d { x / other.x, y / other.y, z / other.z }; }
+    constexpr vector3d& operator+= ( const vector3d& other ) noexcept { return * this = * this + other; }
+    constexpr vector3d& operator-= ( const vector3d& other ) noexcept { return * this = * this - other; }
+    constexpr vector3d& operator*= ( const vector3d& other ) noexcept { return * this = * this * other; }
+    constexpr vector3d& operator/= ( const vector3d& other ) noexcept { return * this = * this / other; }
+    constexpr vector3d operator* ( double scalar ) const noexcept { return * this * vector3d { scalar }; }
+    constexpr vector3d operator/ ( double scalar ) const noexcept { return * this / vector3d { scalar }; }
+    constexpr vector3d& operator*= ( double scalar ) noexcept { return * this = * this * scalar; }
+    constexpr vector3d& operator/= ( double scalar ) noexcept { return * this = * this / scalar; }
+
+    /* Comparison operators */
+    constexpr bool operator== ( const vector3d& other ) const noexcept = default;
+    constexpr bool operator!= ( const vector3d& other ) const noexcept = default;
+
 };
 
 
@@ -238,8 +255,8 @@ public:
 protected:
 
     /* The FOV and maximum depth of the camera */
-    float camera_h_fov, camera_v_fov;
-    float camera_depth;
+    double camera_h_fov, camera_v_fov;
+    double camera_depth;
 
     /* The output mode of the camera */
     openni::VideoMode camera_output_mode;

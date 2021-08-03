@@ -55,7 +55,7 @@ int main ()
     /* Create the controller in a new block */
     {
         /* Create the controller */
-        watergun::controller controller { yaw_stepper, pitch_stepper, M_PI / 2., 10., 0., M_PI };
+        watergun::controller controller { yaw_stepper, pitch_stepper, M_PI / 2., M_PI / 4., 10., 0., M_PI };
 
         /* Wait for interrupt signal */
         wait_for_interrupt ();
