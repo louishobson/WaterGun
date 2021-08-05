@@ -54,6 +54,9 @@ watergun::aimer::aimer ( const double _water_rate, const double _air_resistance,
  */
 watergun::aimer::gun_position watergun::aimer::calculate_aim ( const tracked_user& user ) const
 {
+    /* If the user is at the camera, return their angle for the yaw, and 0 degrees for the pitch */
+    if ( ( user.com.z * user.com.z ) + ( user.com.y * user.com.y ) == 0. ) return { user.com.x, 0. };
+
     /* Solve the time quartic to test whether it is possible to hit the user */
     auto roots = solve_quartic
     (
@@ -72,7 +75,7 @@ watergun::aimer::gun_position watergun::aimer::calculate_aim ( const tracked_use
     if ( time == INFINITY ) return { user.com.x, M_PI / 4. };
 
     /* Else produce the angles */
-    return { user.com.x + user.com_rate.x * time, std::asin ( ( user.com.y + user.com_rate.y * time + 4.905f * time * time ) / ( water_rate * time ) ) };
+    return { user.com.x + user.com_rate.x * time, std::asin ( std::clamp ( ( user.com.y + user.com_rate.y * time + 4.905 * time * time ) / ( water_rate * time ), -1., 1. ) ) };
 }
 
 
@@ -117,41 +120,202 @@ watergun::aimer::tracked_user watergun::aimer::choose_target ( const std::vector
  * 
  * @brief  Over the next n lots of aim periods, create a list of single movements to follow to keep on track with hitting a tracked user.
  * @param  user: The tracked user to aim for.
+ * @param  current_movement: The current movement of the gun.
  * @param  n: The number of aim periods to single movements plans for.
  * @return The list of single movements forming a movement plan.
  */
-std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_movements ( const tracked_user& user, int n ) const
+std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_movements ( const tracked_user& user, const single_movement& current_movement, int n ) const
 {
-    /* Create the list of future movements */
+    /* We will slowly increment the number of aim_periods it will take for the gun to aim at the user.
+     * Each time, consider the gun accelerating from its initial position, and decelerating from its final position at max_yaw_acceleration rads/sec^2.
+     * If it is not possible to cover enough distance to reach the target, then increment the number of aim periods it will take, until it is deemed possible.
+     */
+
+    /* List of future movements */
     std::list<single_movement> future_movements;
 
-    /* Store the change in yaw over the loop */
-    double delta_yaw = 0.;
+    /* Get a lower bound for the number of aim periods to intercept the user */
+    int target_aim_periods = aim_periods_lower_bound ( user, current_movement );
 
-    /* Loop through n */
-    for ( int i = 0; i < n; ++i )
+    /* Project the user to the final and one after final position */
+    tracked_user proj_user     = project_tracked_user ( user, user.timestamp + aim_period * target_aim_periods );
+    tracked_user proj_user_ext = project_tracked_user ( proj_user, proj_user.timestamp + aim_period );
+
+    /* Get the aimings */
+    gun_position aim = calculate_aim ( proj_user ), aim_ext = calculate_aim ( proj_user_ext );
+
+    /* Get the rate of change of the yaw of the aim */
+    double aim_yaw_rate = rate_of_change ( aim_ext.yaw - aim.yaw, aim_period );
+
+    /* Get the maximum delta velocity */
+    double max_delta_velocity = max_yaw_acceleration * duration_to_seconds ( aim_period ).count ();
+
+    /* Create the tableaux */
+    CoinPackedMatrix tableaux;
+
+    /* Reserve space in the tableaux */
+    tableaux.reserve ( target_aim_periods + 20, target_aim_periods + 20 );
+
+    /* Set the initial tableux size */
+    tableaux.setDimensions ( target_aim_periods + 2, target_aim_periods );
+
+    /* Create the constraint which ensures the gun is aimed at the user after the periods */
+    for ( int j = 0; j < target_aim_periods; ++j ) tableaux.modifyCoefficient ( 0, j, 1. );
+
+    /* Create the constraints which limit the angular acceleration */
+    for ( int i = 0; i < target_aim_periods + 1; ++i ) for ( int j = 0; j < target_aim_periods; ++j ) tableaux.modifyCoefficient ( i + 1, j, j == i - 1 ? 1. : ( j == i ? -1. : 0. ) );
+
+    /* Create the bounds */
+    std::vector<double> variable_lb; variable_lb.reserve ( target_aim_periods * 3 ); variable_lb.resize ( target_aim_periods, -max_yaw_velocity );
+    std::vector<double> variable_ub; variable_ub.reserve ( target_aim_periods * 3 ); variable_ub.resize ( target_aim_periods,  max_yaw_velocity );;
+    std::vector<double> constraint_lb; constraint_lb.reserve ( target_aim_periods * 3 ); constraint_lb.resize ( target_aim_periods + 2, -max_delta_velocity ); 
+    std::vector<double> constraint_ub; constraint_ub.reserve ( target_aim_periods * 3 ); constraint_ub.resize ( target_aim_periods + 2,  max_delta_velocity ); 
+
+    /* Correct the bounds for the finishing angle constraint */
+    constraint_lb.front () = constraint_ub.front () = aim.yaw / duration_to_seconds ( aim_period ).count ();
+
+    /* Correct the bounds for the first and last angular acceleration constraint */
+    constraint_lb.at ( 1 ) = -max_delta_velocity - current_movement.yaw_rate; constraint_ub.at ( 1 ) = max_delta_velocity - current_movement.yaw_rate;
+    constraint_lb.back ()  = -max_delta_velocity + aim_yaw_rate;              constraint_ub.back ()  = max_delta_velocity + aim_yaw_rate;
+
+    /* Iterate over number of aim periods. Start with the lower bound of the number of periods it will take. */
+    for ( ;; )
     {
-        /* Project the user */
-        tracked_user proj_user = project_tracked_user ( user, user.timestamp + aim_period * ( i + 1 ) );
+        /* Create the simplex solver */
+        ClpSimplex clp_simplex;
 
-        /* Get the aim for the user. */
-        gun_position aim = calculate_aim ( proj_user );
+        /* Set log level */
+        clp_simplex.setLogLevel ( 0 );
 
-        /* If it is not possible to hit the user, break, else take away the delta yaw */
-        if ( std::isnan ( aim.yaw ) ) break; aim.yaw -= delta_yaw;
+        /* Load the tableaux */
+        clp_simplex.loadProblem ( tableaux, variable_lb.data (), variable_ub.data (), nullptr, constraint_lb.data (), constraint_ub.data () );
 
-        /* Calculate the yaw rate */
-        double yaw_rate = watergun::clamp ( rate_of_change ( aim.yaw, aim_period ), -max_yaw_velocity, +max_yaw_velocity );
+        /* Attempt to solve the problem */
+        clp_simplex.initialSolve ();
 
-        /* Add the single movement */
-        future_movements.push_back ( single_movement { aim_period, user.timestamp, yaw_rate, aim.pitch } );
+        /* If infeasible, increase the tableaux size */
+        if ( !clp_simplex.isProvenOptimal () )
+        {        
+            /* Increment target aim periods */
+            ++target_aim_periods;
 
-        /* Add to the delta yaw */
-        delta_yaw += yaw_rate * duration_to_seconds ( aim_period ).count ();
+            /* Reproject users */
+            proj_user = proj_user_ext; proj_user_ext = project_tracked_user ( proj_user, proj_user.timestamp + aim_period );
+
+            /* Recalculate the aimings */
+            aim = aim_ext; aim_ext = calculate_aim ( proj_user_ext );
+
+            /* Recalculate the aim yaw rate */
+            aim_yaw_rate = rate_of_change ( aim_ext.yaw - aim.yaw, aim_period );
+
+            /* Resize the tableaux */
+            tableaux.setDimensions ( target_aim_periods + 2, target_aim_periods );
+
+            /* Set the new variable's coeficients */
+            tableaux.modifyCoefficient ( 0, target_aim_periods - 1, 1. );
+            for ( int i = 1; i < target_aim_periods; ++i ) tableaux.modifyCoefficient ( i, target_aim_periods - 1, 0. );
+            tableaux.modifyCoefficient ( target_aim_periods + 0, target_aim_periods - 1, -1. );
+            tableaux.modifyCoefficient ( target_aim_periods + 1, target_aim_periods - 1,  1. );
+
+            /* Set the new constraint's coeficients */
+            for ( int j = 0; j < target_aim_periods - 1; ++j ) tableaux.modifyCoefficient ( target_aim_periods + 1, j, 0. );
+
+            /* Add the variable bounds */
+            variable_lb.push_back ( -max_yaw_velocity ); variable_ub.push_back ( max_yaw_velocity );
+
+            /* Modify the bounds for the finishing angle constraint */
+            constraint_lb.front () = constraint_ub.front () = aim.yaw / duration_to_seconds ( aim_period ).count ();
+
+            /* Modify the last constraint bounds */
+            constraint_lb.back () = -max_delta_velocity; constraint_ub.back () = max_delta_velocity;
+
+            /* Add the new constraint bounds */
+            constraint_lb.push_back ( -max_delta_velocity + aim_yaw_rate ); constraint_ub.push_back ( max_delta_velocity + aim_yaw_rate );
+        }
+
+        /* Otherwise transfer the calculated velocities */
+        else 
+        {
+            /* Populate the list of future movements */
+            for ( int i = 0; i < target_aim_periods && i < n; ++i ) future_movements.push_back ( single_movement 
+            { 
+                aim_period, user.timestamp + aim_period * i, 
+                clp_simplex.getColSolution () [ i ], 
+                current_movement.ending_pitch + ( aim.pitch - current_movement.ending_pitch ) * ( i + 1 ) / target_aim_periods
+            } );
+
+            /* Break */
+            break;
+        }
     }
 
-    /* Return the list */
+    /* Add movements until there are n of them */
+    while ( future_movements.size () < n )
+    {
+        /* Reduce the projected user's position by the change in angle just made by the camera */
+        proj_user.com.x -= aim.yaw;
+
+        /* Project user and get the aim */
+        proj_user = project_tracked_user ( proj_user, proj_user.timestamp + aim_period );
+        aim = calculate_aim ( proj_user );
+
+        /* Add the next movement */
+        future_movements.push_back ( single_movement { aim_period, proj_user.timestamp - aim_period, rate_of_change ( aim.yaw, aim_period ), aim.pitch } );
+    }
+
+    /* Return the future movements */
     return future_movements;
+}
+
+
+
+/** @name  aim_periods_lower_bound
+ * 
+ * @brief  Get a lower bound on the number of aim periods to go from a current yaw rate, and intercept a tracked user.
+ * @param  user: The user to intercept.
+ * @param  current_movement: The current movement.
+ * @return A lower bound on the number of aim periods.
+ */
+int watergun::aimer::aim_periods_lower_bound ( const tracked_user& user, const single_movement& current_movement ) const
+{
+    /* Ignoring the max velocity, get the time to accelerate to the user at the maximum acceleration value (choose the +ve time) */
+    double intercept_time = solve_quadratic ( 0.5 * std::copysign ( max_yaw_acceleration, user.com.x ), current_movement.yaw_rate - user.com_rate.x, -user.com.x ).at ( 0 ).real ();
+
+    /* If the maximum velocity was exceeded, consider the cumulative time of accelerating and then travelling at the max velocity until the user is intercepted */
+    if ( std::abs ( current_movement.yaw_rate + std::copysign ( max_yaw_acceleration, user.com.x ) * intercept_time ) > max_yaw_velocity ) 
+    {
+        /* Calculate the time taken to accelerate to full velocity in the direction of the user */
+        double acceleration_time = std::abs ( std::copysign ( max_yaw_velocity, user.com.x ) - current_movement.yaw_rate ) / max_yaw_acceleration;
+
+        /* Calculate the distance covered over that acceleration */
+        double acceleration_distance = current_movement.yaw_rate * acceleration_time + 0.5 * std::copysign ( max_yaw_acceleration, user.com.x ) * acceleration_time * acceleration_time;
+
+        /* Calculate the time at max velocity to intercept the user, from the gun angle after the acceleration time */
+        double max_velocity_time = ( user.com.x - acceleration_distance ) / ( max_yaw_velocity - user.com_rate.x );
+
+        /* Change the intercept time to be the sum of the acceleration and max velocity times */
+        intercept_time = acceleration_time + max_velocity_time;
+    }
+
+    /* Return the minimum number of periods */
+    return std::max ( std::ceil ( intercept_time / duration_to_seconds ( aim_period ).count () ), 1. ); 
+}
+
+
+
+/** @name  solve_quadratic
+ * 
+ * @brief  Solves a quadratic equation with given coeficients in decreasing power order.
+ * @param  c0: The first coeficient (x^2).
+ * @param  c1: The first coeficient (x^1).
+ * @param  c2: The first coeficient (x^0).
+ * @return An array of two (possibly complex) solutions.
+ */
+std::array<std::complex<double>, 2> watergun::aimer::solve_quadratic ( const std::complex<double>& c0, const std::complex<double>& c1, const std::complex<double>& c2 )
+{
+    const std::complex<double> sqrt_part = std::sqrt ( c1 * c1 - 4. * c0 * c2 );
+
+    return { ( -c1 + sqrt_part ) / ( 2. * c0 ), ( -c1 - sqrt_part ) / ( 2. * c0 ) };
 }
 
 

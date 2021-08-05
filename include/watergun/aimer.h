@@ -20,6 +20,10 @@
 
 /* INCLUDES */
 #include <array>
+#include <coin/CoinPackedMatrix.hpp>
+#include <coin/CoinPackedVector.hpp>
+#include <coin/ClpSimplex.hpp>
+#include <coin/ClpSimplexDual.hpp>
 #include <complex>
 #include <list>
 #include <utility>
@@ -120,10 +124,11 @@ public:
      * @brief  Over the next n lots of aim periods, create a list of single movements to follow to keep on track with hitting a tracked user.
      *         The output list will be shorter than n elements, if it becomes not possible to hit the targeted user.
      * @param  user: The tracked user to aim for.
+     * @param  current_movement: The current movement of the gun.
      * @param  n: The number of aim periods to single movements plans for.
      * @return The list of single movements forming a movement plan.
      */
-    std::list<single_movement> calculate_future_movements ( const tracked_user& user, int n ) const;
+    std::list<single_movement> calculate_future_movements ( const tracked_user& user, const single_movement& current_movement, int n ) const;
 
 
 
@@ -144,6 +149,27 @@ protected:
 
 
 private:
+
+    /** @name  aim_periods_lower_bound
+     * 
+     * @brief  Get a lower bound on the number of aim periods to go from a current yaw rate, and intercept a tracked user.
+     * @param  user: The user to intercept.
+     * @param  current_movement: The current movement.
+     * @return A lower bound on the number of aim periods.
+     */
+    int aim_periods_lower_bound ( const tracked_user& user, const single_movement& current_movement ) const;
+
+
+
+    /** @name  solve_quadratic
+     * 
+     * @brief  Solves a quadratic equation with given coeficients in decreasing power order.
+     * @param  c0: The first coeficient (x^2).
+     * @param  c1: The first coeficient (x^1).
+     * @param  c2: The first coeficient (x^0).
+     * @return An array of two (possibly complex) solutions.
+     */
+    static std::array<std::complex<double>, 2> solve_quadratic ( const std::complex<double>& c0, const std::complex<double>& c1, const std::complex<double>& c2 );
 
     /** @name  solve_quartic
      * 
