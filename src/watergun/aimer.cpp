@@ -131,21 +131,8 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
      * If it is not possible to cover enough distance to reach the target, then increment the number of aim periods it will take, until it is deemed possible.
      */
 
-    /* List of future movements */
-    std::list<single_movement> future_movements;
-
     /* Get a lower bound for the number of aim periods to intercept the user */
-    int target_aim_periods = aim_periods_lower_bound ( user, current_movement );
-
-    /* Project the user to the final and one after final position */
-    tracked_user proj_user     = project_tracked_user ( user, user.timestamp + aim_period * target_aim_periods );
-    tracked_user proj_user_ext = project_tracked_user ( proj_user, proj_user.timestamp + aim_period );
-
-    /* Get the aimings */
-    gun_position aim = calculate_aim ( proj_user ), aim_ext = calculate_aim ( proj_user_ext );
-
-    /* Get the rate of change of the yaw of the aim */
-    double aim_yaw_rate = rate_of_change ( aim_ext.yaw - aim.yaw, aim_period );
+    int target_aim_periods = 150; //aim_periods_lower_bound ( user, current_movement );
 
     /* Get the maximum delta velocity */
     double max_delta_velocity = max_yaw_acceleration * duration_to_seconds ( aim_period ).count ();
@@ -153,115 +140,117 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
     /* Create the tableaux */
     CoinPackedMatrix tableaux;
 
-    /* Reserve space in the tableaux */
-    tableaux.reserve ( target_aim_periods + 20, target_aim_periods + 20 );
-
     /* Set the initial tableux size */
-    tableaux.setDimensions ( target_aim_periods + 2, target_aim_periods );
+    tableaux.setDimensions ( target_aim_periods * 3 + 2, target_aim_periods * 2 );
+    
+    /* Create the constraint bounds */
+    std::vector<double> constraint_lb; constraint_lb.reserve ( target_aim_periods * 3 + 2 );
+    std::vector<double> constraint_ub; constraint_ub.reserve ( target_aim_periods * 3 + 2 );
+        
+    /* Set proj_user initially to user, and proj_user will always refer to the user one period after */
+    tracked_user proj_user = user, proj_user_ext = project_tracked_user ( proj_user, proj_user.timestamp + aim_period );
 
-    /* Create the constraint which ensures the gun is aimed at the user after the periods */
-    for ( int j = 0; j < target_aim_periods; ++j ) tableaux.modifyCoefficient ( 0, j, 1. );
+    /* Get the aimings */
+    gun_position aim = calculate_aim ( proj_user ), aim_ext = calculate_aim ( proj_user_ext );
 
-    /* Create the constraints which limit the angular acceleration */
-    for ( int i = 0; i < target_aim_periods + 1; ++i ) for ( int j = 0; j < target_aim_periods; ++j ) tableaux.modifyCoefficient ( i + 1, j, j == i - 1 ? 1. : ( j == i ? -1. : 0. ) );
+    /* Get the rate of change of the yaw of the aim */
+    double aim_yaw_rate = rate_of_change ( aim_ext.yaw - aim.yaw, aim_period );
 
-    /* Create the bounds */
-    std::vector<double> variable_lb; variable_lb.reserve ( target_aim_periods * 3 ); variable_lb.resize ( target_aim_periods, -max_yaw_velocity );
-    std::vector<double> variable_ub; variable_ub.reserve ( target_aim_periods * 3 ); variable_ub.resize ( target_aim_periods,  max_yaw_velocity );;
-    std::vector<double> constraint_lb; constraint_lb.reserve ( target_aim_periods * 3 ); constraint_lb.resize ( target_aim_periods + 2, -max_delta_velocity ); 
-    std::vector<double> constraint_ub; constraint_ub.reserve ( target_aim_periods * 3 ); constraint_ub.resize ( target_aim_periods + 2,  max_delta_velocity ); 
-
-    /* Correct the bounds for the finishing angle constraint */
-    constraint_lb.front () = constraint_ub.front () = aim.yaw / duration_to_seconds ( aim_period ).count ();
-
-    /* Correct the bounds for the first and last angular acceleration constraint */
-    constraint_lb.at ( 1 ) = -max_delta_velocity - current_movement.yaw_rate; constraint_ub.at ( 1 ) = max_delta_velocity - current_movement.yaw_rate;
-    constraint_lb.back ()  = -max_delta_velocity + aim_yaw_rate;              constraint_ub.back ()  = max_delta_velocity + aim_yaw_rate;
-
-    /* Iterate over number of aim periods. Start with the lower bound of the number of periods it will take. */
-    for ( ;; )
+    /* Set up the constraints which define the absolute variables and the total angle covered */
+    for ( int i = 0; i < target_aim_periods; ++i )
     {
-        /* Create the simplex solver */
-        ClpSimplex clp_simplex;
-
-        /* Set log level */
-        clp_simplex.setLogLevel ( 0 );
-
-        /* Load the tableaux */
-        clp_simplex.loadProblem ( tableaux, variable_lb.data (), variable_ub.data (), nullptr, constraint_lb.data (), constraint_ub.data () );
-
-        /* Attempt to solve the problem */
-        clp_simplex.initialSolve ();
-
-        /* If infeasible, increase the tableaux size */
-        if ( !clp_simplex.isProvenOptimal () )
-        {        
-            /* Increment target aim periods */
-            ++target_aim_periods;
-
-            /* Reproject users */
-            proj_user = proj_user_ext; proj_user_ext = project_tracked_user ( proj_user, proj_user.timestamp + aim_period );
-
-            /* Recalculate the aimings */
-            aim = aim_ext; aim_ext = calculate_aim ( proj_user_ext );
-
-            /* Recalculate the aim yaw rate */
-            aim_yaw_rate = rate_of_change ( aim_ext.yaw - aim.yaw, aim_period );
-
-            /* Resize the tableaux */
-            tableaux.setDimensions ( target_aim_periods + 2, target_aim_periods );
-
-            /* Set the new variable's coeficients */
-            tableaux.modifyCoefficient ( 0, target_aim_periods - 1, 1. );
-            for ( int i = 1; i < target_aim_periods; ++i ) tableaux.modifyCoefficient ( i, target_aim_periods - 1, 0. );
-            tableaux.modifyCoefficient ( target_aim_periods + 0, target_aim_periods - 1, -1. );
-            tableaux.modifyCoefficient ( target_aim_periods + 1, target_aim_periods - 1,  1. );
-
-            /* Set the new constraint's coeficients */
-            for ( int j = 0; j < target_aim_periods - 1; ++j ) tableaux.modifyCoefficient ( target_aim_periods + 1, j, 0. );
-
-            /* Add the variable bounds */
-            variable_lb.push_back ( -max_yaw_velocity ); variable_ub.push_back ( max_yaw_velocity );
-
-            /* Modify the bounds for the finishing angle constraint */
-            constraint_lb.front () = constraint_ub.front () = aim.yaw / duration_to_seconds ( aim_period ).count ();
-
-            /* Modify the last constraint bounds */
-            constraint_lb.back () = -max_delta_velocity; constraint_ub.back () = max_delta_velocity;
-
-            /* Add the new constraint bounds */
-            constraint_lb.push_back ( -max_delta_velocity + aim_yaw_rate ); constraint_ub.push_back ( max_delta_velocity + aim_yaw_rate );
+        /* Set the constraint: t[i] >= x[i] - aim_yaw_rate   <=>   -x[i] + t[i] >= -aim_yaw_rate */
+        for ( int j = 0; j < target_aim_periods; ++j ) 
+        { 
+            tableaux.modifyCoefficient ( i * 2 + 0, j, i == j ? -1. : 0. );
+            tableaux.modifyCoefficient ( i * 2 + 0, j + target_aim_periods, i == j ? 1. : 0. );
         }
 
-        /* Otherwise transfer the calculated velocities */
-        else 
+        /* Set the bounds for the constraint */
+        constraint_lb.push_back ( -aim_yaw_rate ); constraint_ub.push_back ( COIN_DBL_MAX );
+
+        /* Set the constraint: t[i] >= aim_yaw_rate - x[i]   <=>   x[i] + t[i] >= aim_yaw_rate */
+        for ( int j = 0; j < target_aim_periods; ++j )
         {
-            /* Populate the list of future movements */
-            for ( int i = 0; i < target_aim_periods && i < n; ++i ) future_movements.push_back ( single_movement 
-            { 
-                aim_period, user.timestamp + aim_period * i, 
-                clp_simplex.getColSolution () [ i ], 
-                current_movement.ending_pitch + ( aim.pitch - current_movement.ending_pitch ) * ( i + 1 ) / target_aim_periods
-            } );
-
-            /* Break */
-            break;
+            tableaux.modifyCoefficient ( i * 2 + 1, j, i == j ? 1. : 0. );
+            tableaux.modifyCoefficient ( i * 2 + 1, j + target_aim_periods, i == j ? 1. : 0. );
         }
+
+        /* Set the bounds for the constraint */
+        constraint_lb.push_back ( aim_yaw_rate ); constraint_ub.push_back ( COIN_DBL_MAX );
+
+        /* Update the projections */
+        proj_user = proj_user_ext; proj_user_ext = project_tracked_user ( proj_user, proj_user.timestamp + aim_period );
+
+        /* Update the aimings */
+        aim = aim_ext; aim_ext = calculate_aim ( proj_user_ext );
+
+        /* Update the rate of change of the yaw of the aim */
+        aim_yaw_rate = rate_of_change ( aim_ext.yaw - aim.yaw, aim_period );
     }
 
-    /* Add movements until there are n of them */
-    while ( future_movements.size () < n )
+    /* Set up the constraints which enforce the maximum velocity change between periods */
+    for ( int i = 0; i < target_aim_periods + 1; ++i ) 
     {
-        /* Reduce the projected user's position by the change in angle just made by the camera */
-        proj_user.com.x -= aim.yaw;
+        /* Set constraint: -max_delta_velocity <= x[i-1] - x[i] <= max_delta_velocity */
+        for ( int j = 0; j < target_aim_periods; ++j ) 
+        {
+            tableaux.modifyCoefficient ( i + target_aim_periods * 2, j, j == i - 1 ? 1. : ( j == i ? -1. : 0. ) );
+            tableaux.modifyCoefficient ( i + target_aim_periods * 2, j + target_aim_periods, 0. );
+        }
 
-        /* Project user and get the aim */
-        proj_user = project_tracked_user ( proj_user, proj_user.timestamp + aim_period );
-        aim = calculate_aim ( proj_user );
-
-        /* Add the next movement */
-        future_movements.push_back ( single_movement { aim_period, proj_user.timestamp - aim_period, rate_of_change ( aim.yaw, aim_period ), aim.pitch } );
+        /* Set bounds. Initial and final constraint should have special bounds */
+        if ( i == 0                  ) { constraint_lb.push_back ( -max_delta_velocity - current_movement.yaw_rate ); constraint_ub.push_back ( max_delta_velocity - current_movement.yaw_rate ); } else
+        if ( i == target_aim_periods ) { constraint_lb.push_back ( -max_delta_velocity + aim_yaw_rate              ); constraint_ub.push_back ( max_delta_velocity + aim_yaw_rate              ); } else
+        { constraint_lb.push_back ( -max_delta_velocity ); constraint_ub.push_back ( max_delta_velocity ); }
     }
+
+    /* Set up the total angle covered constraint: ( SUM x ) * aim_period == total angle covered */
+    for ( int j = 0; j < target_aim_periods; ++j ) 
+    { 
+        tableaux.modifyCoefficient ( target_aim_periods * 3 + 1, j, 1. ); 
+        tableaux.modifyCoefficient ( target_aim_periods * 3 + 1, j + target_aim_periods, 0. ); 
+    }
+
+    /* Set the bounds for the constraint */
+    constraint_lb.push_back ( aim.yaw / duration_to_seconds ( aim_period ).count () ); constraint_ub.push_back ( aim.yaw / duration_to_seconds ( aim_period ).count () ); 
+
+    /* Create the variable bounds */
+    std::vector<double> variable_lb; variable_lb.reserve ( target_aim_periods * 2 );
+    std::vector<double> variable_ub; variable_ub.reserve ( target_aim_periods * 2 );
+
+    /* Set the variable bounds */
+    for ( int i = 0; i < target_aim_periods; ++i ) { variable_lb.push_back ( -max_yaw_velocity ); variable_ub.push_back ( max_yaw_velocity ); }
+    for ( int i = 0; i < target_aim_periods; ++i ) { variable_lb.push_back ( 0. ); variable_ub.push_back ( COIN_DBL_MAX ); }
+
+    /* Create the objective row */
+    std::vector<double> objective_row ( target_aim_periods * 2, 0. );
+
+    /* Populate the objective row */
+    for ( int i = 0; i < target_aim_periods; ++i ) objective_row.at ( i + target_aim_periods ) = 1000. * ( i + 1 );
+
+    /* Create the simplex solver */
+    ClpSimplex clp_simplex;
+
+    /* Set log level */
+    clp_simplex.setLogLevel ( 0 );
+
+    /* Load the tableaux */
+    clp_simplex.loadProblem ( tableaux, variable_lb.data (), variable_ub.data (), objective_row.data (), constraint_lb.data (), constraint_ub.data () );
+
+    /* Attempt to solve the problem */
+    clp_simplex.dual ();
+
+    /* List of future movements */
+    std::list<single_movement> future_movements;
+
+    /* Populate the list of future movements */
+    for ( int i = 0; i < target_aim_periods && i < n; ++i ) future_movements.push_back ( single_movement 
+    { 
+        aim_period, user.timestamp + aim_period * i, 
+        clp_simplex.getColSolution () [ i ], 
+        current_movement.ending_pitch + ( aim.pitch - current_movement.ending_pitch ) * ( i + 1 ) / target_aim_periods
+    } );
 
     /* Return the future movements */
     return future_movements;
