@@ -159,8 +159,13 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
     std::list<single_movement> future_movements;
 
     /* Populate the list of future movements */
-    for ( int i = 0; i < n; ++i ) 
-        future_movements.push_back ( single_movement { aim_period, user.timestamp + aim_period * i, movement_model.getColSolution () [ i ], gun_positions.at ( i ).pitch } );
+    for ( int i = 0; i < n; ++i ) future_movements.push_back ( single_movement 
+    { 
+        aim_period, user.timestamp + aim_period * i, 
+        movement_model.getColSolution () [ i ], 
+        gun_positions.at ( i ).pitch, 
+        movement_model.getColSolution () [ i + n ] < M_PI / 180. && !gun_positions.at ( i ).out_of_range 
+    } );
 
     /* Return the future movements */
     return future_movements;

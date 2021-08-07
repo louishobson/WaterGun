@@ -76,6 +76,9 @@ public:
 
         /* The exact pitch to end with at the end of this movement */
         double ending_pitch;
+
+        /* Whether the gun ends up on target by the end of the movement */
+        bool end_on_target = false;
     };
 
 
