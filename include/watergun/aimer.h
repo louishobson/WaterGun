@@ -150,14 +150,31 @@ protected:
 
 private:
 
-    /** @name  aim_periods_lower_bound
+    /* The current model for movement planning */
+    mutable ClpSimplex movement_model;
+
+    /* The multiple to increase the movement model size by */
+    const int movement_model_size_multiple { 20 };
+
+
+
+    /** @name  create_basic_movement_model
      * 
-     * @brief  Get a lower bound on the number of aim periods to go from a current yaw rate, and intercept a tracked user.
-     * @param  user: The user to intercept.
-     * @param  current_movement: The current movement.
-     * @return A lower bound on the number of aim periods.
+     * @brief  Create a linear programming model for n future movements into the future. The constraint bounds will need to be modified later for the model to work.
+     * @param  n: The number of movements in the model.
+     * @return ClpModel object.
      */
-    int aim_periods_lower_bound ( const tracked_user& user, const single_movement& current_movement ) const;
+    ClpModel create_basic_movement_model ( int n ) const;
+
+    /** @name  specialize_movement_model
+     * 
+     * @brief  Make a basic movement model specific to a given tracked user.
+     * @param  clp_model: A reference to the model to refine.
+     * @param  user: The tracked user to aim for.
+     * @param  current_movement: The current movement of the gun.
+     * @return An array of the pitches to hit the user at each period of the mode.
+     */
+    std::vector<double> specialize_movement_model ( ClpModel& clp_model, const tracked_user& user, const single_movement& current_movement ) const;
 
 
 
