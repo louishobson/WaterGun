@@ -159,7 +159,7 @@ void watergun::controller::movement_planner_thread_function ( std::stop_token st
         movement_plan.erase ( std::next ( current_movement ), movement_plan.end () );
 
         /* Add new future movements */
-        movement_plan.splice ( movement_plan.end (), calculate_future_movements ( target, num_future_movements ) );
+        movement_plan.splice ( movement_plan.end (), calculate_future_movements ( target, * current_movement, num_future_movements ) );
 
         /* Add a search movement to the end of the plan */
         movement_plan.push_back ( single_movement { large_duration, large_time_point, std::copysign ( search_yaw_velocity, movement_plan.back ().yaw_rate ), 0. } );
