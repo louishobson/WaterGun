@@ -152,14 +152,15 @@ void watergun::controller::movement_planner_thread_function ( std::stop_token st
         tracked_user target = choose_target ( get_tracked_users () );
         if ( target.com == vector3d {} ) continue;
 
-        /* Lock the mutex */
-        std::unique_lock<std::mutex> lock { movement_mx };
+        /* Calculate future movements */
+        std::list<single_movement> future_movements = calculate_future_movements ( target, * current_movement, num_future_movements );
 
-        /* Erase movements not yet started */
+        /* Lock the mutex then erase movements not yet started */
+        std::unique_lock<std::mutex> lock { movement_mx };
         movement_plan.erase ( std::next ( current_movement ), movement_plan.end () );
 
         /* Add new future movements */
-        movement_plan.splice ( movement_plan.end (), calculate_future_movements ( target, * current_movement, num_future_movements ) );
+        movement_plan.splice ( movement_plan.end (), std::move ( future_movements ) );
 
         /* Add a search movement to the end of the plan */
         movement_plan.push_back ( single_movement { large_duration, large_time_point, std::copysign ( search_yaw_velocity, movement_plan.back ().yaw_rate ), 0. } );
@@ -179,6 +180,9 @@ void watergun::controller::movement_planner_thread_function ( std::stop_token st
             /* Set stepper velocities and positions */
             yaw_stepper.set_velocity ( current_movement->yaw_rate );
             pitch_stepper.set_position ( current_movement->ending_pitch, current_movement->duration );
+
+            /* Unlock the mutex */
+            lock.unlock ();
 
             /* Break if new tracked user data is availible */
         } while ( !wait_for_detected_tracked_users ( current_movement->duration, stoken, &frameid ) && !stoken.stop_requested () );
