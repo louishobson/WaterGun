@@ -89,7 +89,7 @@ public:
      * @param  timestamp: The new timestamp that their position should match. Defaults to now. Timestamps into the future are likely to lose accuracy.
      * @return The updated tracked user.
      */
-    virtual tracked_user dynamic_project_tracked_user ( const tracked_user& user, clock::time_point timestamp = clock::now () ) const;
+    tracked_user dynamic_project_tracked_user ( const tracked_user& user, clock::time_point timestamp = clock::now () ) const;
 
 
 
