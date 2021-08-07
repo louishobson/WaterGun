@@ -102,7 +102,7 @@ struct watergun::vector3d
      * @brief Construct from nite::Point3f object.
      * @param v: The Point3f object.
      */
-    explicit operator nite::Point3f () noexcept { return nite::Point3f { x, y, z }; }
+    explicit operator nite::Point3f () noexcept { return nite::Point3f { static_cast<float> ( x ), static_cast<float> ( y ), static_cast<float> ( z ) }; }
 
 
 
