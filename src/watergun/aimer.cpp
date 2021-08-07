@@ -39,6 +39,7 @@ watergun::aimer::aimer ( const double _water_rate, const double _air_resistance,
     , max_yaw_velocity { _max_yaw_velocity }
     , max_yaw_acceleration { _max_yaw_acceleration }
     , aim_period { _aim_period }
+    , aim_period_s { duration_to_seconds ( aim_period ).count () }
 {
     /* If the aim period is 0, update it to the length of a frame */
     if ( aim_period == clock::duration { 0 } ) aim_period = std::chrono::milliseconds { 1000 } / camera_output_mode.getFps (); 
@@ -78,7 +79,7 @@ watergun::aimer::gun_position watergun::aimer::calculate_aim ( const tracked_use
     for ( const auto& root : roots ) if ( std::abs ( root.imag () ) < 1e-6 && root.real () > 0. && root.real () < time ) time = root.real ();
 
     /* If time is still infinity, there are no solutions, so return the user's position and 45 degrees */
-    if ( time == INFINITY ) return { user.com.x, M_PI / 4. };
+    if ( time == INFINITY ) return { user.com.x, M_PI / 4., true };
 
     /* Else produce the angles */
     return { user.com.x + user.com_rate.x * time, std::asin ( std::clamp ( ( user.com.y + user.com_rate.y * time + 4.905 * time * time ) / ( water_rate * time ), -1., 1. ) ) };
@@ -136,19 +137,19 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
     if ( n > movement_model.getNumCols () / 2 ) movement_model = create_basic_movement_model ( n );
 
     /* Specialize the model */
-    auto pitches = specialize_movement_model ( movement_model, user, current_movement );
+    auto gun_positions = specialize_movement_model ( movement_model, user, current_movement );
 
     /* Attempt to solve the problem */
     movement_model.dual ();
 
     /* If it failed, increase the model size and try again */
-    while ( !movement_model.isProvenOptimal () )
+    while ( movement_model.isProvenPrimalInfeasible () )
     {
         /* Increase the model size */
         movement_model = create_basic_movement_model ( movement_model.getNumCols () / 2 + movement_model_size_multiple );
 
         /* Respecialize the model */
-        pitches = specialize_movement_model ( movement_model, user, current_movement );
+        gun_positions = specialize_movement_model ( movement_model, user, current_movement );
 
         /* Attempt to solve again */
         movement_model.dual ();
@@ -159,7 +160,7 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
 
     /* Populate the list of future movements */
     for ( int i = 0; i < n; ++i ) 
-        future_movements.push_back ( single_movement { aim_period, user.timestamp + aim_period * i, movement_model.getColSolution () [ i ], pitches.at ( i ) } );
+        future_movements.push_back ( single_movement { aim_period, user.timestamp + aim_period * i, movement_model.getColSolution () [ i ], gun_positions.at ( i ).pitch } );
 
     /* Return the future movements */
     return future_movements;
@@ -175,78 +176,53 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
  */
 ClpModel watergun::aimer::create_basic_movement_model ( const int n ) const
 {
-    /* Get the maximum delta velocity */
-    const double max_delta_velocity = max_yaw_acceleration * duration_to_seconds ( aim_period ).count ();
+    /* Tableaux contains variables x[n] and t[n], where x[i] is the velocity at the i'th period,
+     * and t[i] is at least the absolute difference between x[i] and the on-target angle at that period.
+     * The acceleration between periods, as well as the finishing angle are constrained.
+     * The model is optimal, when t[0...n] are minimised, where t[i+1] is more desireable to minimise than t[i].
+     */
 
     /* Create the tableaux */
     CoinPackedMatrix tableaux;
 
     /* Set the initial tableux size */
-    tableaux.setDimensions ( n * 3 + 2, n * 2 );
-    
+    tableaux.setDimensions ( n * 3 + 1, n * 2 );
+
     /* Create the constraint bounds */
-    std::vector<double> constraint_lb; constraint_lb.reserve ( n * 3 + 2 );
-    std::vector<double> constraint_ub; constraint_ub.reserve ( n * 3 + 2 );
+    std::vector<double> constraint_lb ( n * 3 + 1 ), constraint_ub ( n * 3 + 1 );
 
-    /* Set up the constraints which define the absolute variables */
-    for ( int i = 0; i < n; ++i )
+    /* Set up the constraints which force t[i] >= | aim_period * x[i] - target angle | */
+    for ( int i = 0; i < n; ++i ) for ( int j = 0; j < n * 2; ++j ) 
     {
-        /* Set the constraint: t[i] >= x[i] - aim_yaw_rate   <=>   -x[i] + t[i] >= -aim_yaw_rate */
-        for ( int j = 0; j < n; ++j ) 
-        { 
-            tableaux.modifyCoefficient ( i * 2 + 0, j, i == j ? -1. : 0. );
-            tableaux.modifyCoefficient ( i * 2 + 0, j + n, i == j ? 1. : 0. );
-        }
+        /* Set the 1st constraint: t[i] >= aim_period *  SUM x[0...i] - target angle    <=>   aim_period * -SUM x[0...i] + t[i] >= -target angle */
+        tableaux.modifyCoefficient ( i * 2 + 0, j, j < n && j <= i ? -aim_period_s : ( j - n == i ? 1. : 0. ) );
+            
+        /* Set the 2nd constraint: t[i] >= aim_period * -SUM x[0...i] + target angle    <=>   aim_period *  SUM x[0...i] + t[i] >=  target angle */
+        tableaux.modifyCoefficient ( i * 2 + 1, j, j < n && j <= i ?  aim_period_s : ( j - n == i ? 1. : 0. )  );
 
-        /* Set the constraint: t[i] >= aim_yaw_rate - x[i]   <=>   x[i] + t[i] >= aim_yaw_rate */
-        for ( int j = 0; j < n; ++j )
-        {
-            tableaux.modifyCoefficient ( i * 2 + 1, j, i == j ? 1. : 0. );
-            tableaux.modifyCoefficient ( i * 2 + 1, j + n, i == j ? 1. : 0. );
-        }
-
-        /* Set the bounds for the constraints. The lower constraints should be -aim_yaw_rate and aim_yaw_rate, but those values are not availible yet. */
-        constraint_lb.push_back ( 0. ); constraint_ub.push_back ( COIN_DBL_MAX );
-        constraint_lb.push_back ( 0. ); constraint_ub.push_back ( COIN_DBL_MAX );
+        /* Set the upper bounds to the maximum. Lower bound is set during specialization. */
+        constraint_ub.at ( i * 2 ) = COIN_DBL_MAX; constraint_ub.at ( i * 2 + 1 ) = COIN_DBL_MAX;
     }
 
-    /* Set up the constraints which enforce the maximum velocity change between periods */
-    for ( int i = 0; i < n + 1; ++i ) 
+    /* Set up the constraints which enforce the maximum acceleration */
+    for ( int i = 0; i < n + 1; ++i ) for ( int j = 0; j < n * 2; ++j ) 
     {
-        /* Set constraint: -max_delta_velocity <= x[i-1] - x[i] <= max_delta_velocity */
-        for ( int j = 0; j < n; ++j ) 
-        {
-            tableaux.modifyCoefficient ( i + n * 2, j, j == i - 1 ? 1. : ( j == i ? -1. : 0. ) );
-            tableaux.modifyCoefficient ( i + n * 2, j + n, 0. );
-        }
+        /* Set up the constraint: -max acceleration <= ( x[i-1] - x[i] ) / aim_period <= max acceleration */
+        tableaux.modifyCoefficient ( i + n * 2, j, j == i - 1 ? 1. / aim_period_s : ( j == i && j != n ? -1. / aim_period_s : 0. ) );
 
-        /* Set the bounds for the constraint. Initial and final constraints should have different bounds, but those values are not availible yet. */
-        constraint_lb.push_back ( -max_delta_velocity ); constraint_ub.push_back ( max_delta_velocity );
+        /* Set the bounds */
+        constraint_lb.at ( i + n * 2 ) = -max_yaw_acceleration; constraint_ub.at ( i + n * 2 ) = max_yaw_acceleration;
     }
-
-    /* Set up the total angle covered constraint: ( SUM x ) * aim_period == total angle covered */
-    for ( int j = 0; j < n; ++j ) 
-    { 
-        tableaux.modifyCoefficient ( n * 3 + 1, j, 1. ); 
-        tableaux.modifyCoefficient ( n * 3 + 1, j + n, 0. ); 
-    }
-
-    /* The bounds for this constraint are not yet known, so set them to 0. */
-    constraint_lb.push_back ( 0. ); constraint_ub.push_back ( 0. ); 
 
     /* Create the variable bounds */
-    std::vector<double> variable_lb; variable_lb.reserve ( n * 2 );
-    std::vector<double> variable_ub; variable_ub.reserve ( n * 2 );
-
-    /* Set the variable bounds */
-    for ( int i = 0; i < n; ++i ) { variable_lb.push_back ( -max_yaw_velocity ); variable_ub.push_back ( max_yaw_velocity ); }
-    for ( int i = 0; i < n; ++i ) { variable_lb.push_back ( 0. ); variable_ub.push_back ( COIN_DBL_MAX ); }
+    std::vector<double> variable_lb ( n * 2 ), variable_ub ( n * 2 );
+    std::fill_n ( variable_lb.begin (), n, -max_yaw_velocity ); std::fill_n ( variable_lb.begin () + n, n, 0. );
+    std::fill_n ( variable_ub.begin (), n, +max_yaw_velocity ); std::fill_n ( variable_ub.begin () + n, n, COIN_DBL_MAX );
+    variable_ub.back () = 0.; /* t[n-1] should only be 0, as this will force the gun to be aimed at the user by the end of the last period */
 
     /* Create the objective row */
     std::vector<double> objective_row ( n * 2, 0. );
-
-    /* Populate the objective row */
-    for ( int i = 0; i < n; ++i ) objective_row.at ( i + n ) = 1000. * ( i + 1 );
+    for ( int i = 0; i < n; ++i ) objective_row.at ( i + n ) = std::pow ( 1.1, i );
 
     /* Create the model and populate it */
     ClpModel clp_model; clp_model.loadProblem ( tableaux, variable_lb.data (), variable_ub.data (), objective_row.data (), constraint_lb.data (), constraint_ub.data () );
@@ -263,50 +239,37 @@ ClpModel watergun::aimer::create_basic_movement_model ( const int n ) const
  * @param  clp_model: A reference to the model to refine.
  * @param  user: The tracked user to aim for.
  * @param  current_movement: The current movement of the gun.
- * @return An array of the pitches to hit the user at each period of the mode.
+ * @return An array of the gun positions at each period of the mode.
  */
-std::vector<double> watergun::aimer::specialize_movement_model ( ClpModel& clp_model, const tracked_user& user, const single_movement& current_movement ) const
+std::vector<watergun::aimer::gun_position> watergun::aimer::specialize_movement_model ( ClpModel& clp_model, const tracked_user& user, const single_movement& current_movement ) const
 {
-    /* Get the maximum delta velocity and number of variables in the model */
-    const double max_delta_velocity = max_yaw_acceleration * duration_to_seconds ( aim_period ).count ();
+    /* Get the number of variables in the model */
     const int n = clp_model.getNumCols () / 2;
 
-    /* The return array of pitches at the end of each period */
-    std::vector<double> pitches; pitches.reserve ( n );
-
-    /* Set proj_user initially to user, and proj_user will always refer to the user one period after */
-    tracked_user proj_user = user, proj_user_ext = project_tracked_user ( proj_user, proj_user.timestamp + aim_period );
-
-    /* Get the aimings and the rate of change of aim */
-    gun_position aim = calculate_aim ( proj_user ), aim_ext = calculate_aim ( proj_user_ext );
-    double aim_yaw_rate = rate_of_change ( aim_ext.yaw - aim.yaw, aim_period );
+    /* The return array of gun positions at the end of each period */
+    std::vector<gun_position> gun_positions ( n );
 
     /* Modify the bounds on the constraints which define the absolute variables */
     for ( int i = 0; i < n; ++i )
     {
+        /* Project the user and get the aim */
+        tracked_user proj_user = project_tracked_user ( user, user.timestamp + aim_period * ( i + 1 ) );
+        gun_positions.at ( i ) = calculate_aim ( proj_user );
+
         /* Set the bounds for the constraint */
-        clp_model.setRowLower ( i * 2 + 0, -aim_yaw_rate ); clp_model.setRowLower ( i * 2 + 1, +aim_yaw_rate );
-
-        /* Update the projections */
-        proj_user = proj_user_ext; proj_user_ext = project_tracked_user ( proj_user, proj_user.timestamp + aim_period );
-
-        /* Update the aimings and rate of change of aim */
-        aim = aim_ext; aim_ext = calculate_aim ( proj_user_ext );
-        aim_yaw_rate = rate_of_change ( aim_ext.yaw - aim.yaw, aim_period );
-
-        /* Add the pitch to the array */
-        pitches.push_back ( aim.pitch );
+        clp_model.setRowLower ( i * 2, -gun_positions.at ( i ).yaw ); clp_model.setRowLower ( i * 2 + 1, +gun_positions.at ( i ).yaw );        
     }
 
-    /* Modify the bounds on the first and last constraint that enforce the maximum change in velocity per period */
-    clp_model.setRowBounds ( n * 2, -max_delta_velocity - current_movement.yaw_rate, max_delta_velocity - current_movement.yaw_rate );
-    clp_model.setRowBounds ( n * 3, -max_delta_velocity + aim_yaw_rate,              max_delta_velocity + aim_yaw_rate              );
+    /* Calculate the rate of change of the aiming yaw at the end of the periods. Correct for the off-chance that the user becomes unhittable between the two aimings. */
+    gun_position aim_ext = calculate_aim ( project_tracked_user ( user, user.timestamp + aim_period * ( n + 1 ) ) );
+    double aim_yaw_rate; if ( gun_positions.back ().out_of_range || aim_ext.out_of_range ) aim_yaw_rate = user.com_rate.x; else aim_yaw_rate = rate_of_change ( aim_ext.yaw - gun_positions.back ().yaw, aim_period );
 
-    /* Modify the bounds for constraint which limits the total angle covered */
-    clp_model.setRowBounds ( n * 3 + 1, aim.yaw / duration_to_seconds ( aim_period ).count (), aim.yaw / duration_to_seconds ( aim_period ).count () ); 
+    /* Modify the bounds on the first and last constraint that enforce the maximum acceleration */
+    clp_model.setRowBounds ( n * 2, -max_yaw_acceleration - current_movement.yaw_rate / aim_period_s, +max_yaw_acceleration - current_movement.yaw_rate / aim_period_s );
+    clp_model.setRowBounds ( n * 3, -max_yaw_acceleration +              aim_yaw_rate / aim_period_s, +max_yaw_acceleration +             aim_yaw_rate / aim_period_s );
 
-    /* Return the pitches */
-    return pitches;
+    /* Return the gun positions */
+    return gun_positions;
 }
 
 

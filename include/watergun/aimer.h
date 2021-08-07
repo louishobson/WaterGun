@@ -21,9 +21,7 @@
 /* INCLUDES */
 #include <array>
 #include <coin/CoinPackedMatrix.hpp>
-#include <coin/CoinPackedVector.hpp>
 #include <coin/ClpSimplex.hpp>
-#include <coin/ClpSimplexDual.hpp>
 #include <complex>
 #include <list>
 #include <utility>
@@ -58,7 +56,7 @@ public:
      * 
      * The position of the watergun in terms of yaw and pitch in radians.
      */
-    struct gun_position { double yaw, pitch; };
+    struct gun_position { double yaw, pitch; bool out_of_range = false; };
 
     /** struct single_movement
      * 
@@ -144,7 +142,7 @@ protected:
     double max_yaw_velocity, max_yaw_acceleration;
 
     /* The period of time with which the gun should aspire to be aiming at a user within */
-    clock::duration aim_period;
+    clock::duration aim_period; double aim_period_s;
 
 
 
@@ -172,9 +170,9 @@ private:
      * @param  clp_model: A reference to the model to refine.
      * @param  user: The tracked user to aim for.
      * @param  current_movement: The current movement of the gun.
-     * @return An array of the pitches to hit the user at each period of the mode.
+     * @return An array of gun positions at each period of the mode.
      */
-    std::vector<double> specialize_movement_model ( ClpModel& clp_model, const tracked_user& user, const single_movement& current_movement ) const;
+    std::vector<gun_position> specialize_movement_model ( ClpModel& clp_model, const tracked_user& user, const single_movement& current_movement ) const;
 
 
 
