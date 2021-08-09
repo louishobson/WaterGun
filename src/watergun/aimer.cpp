@@ -184,7 +184,7 @@ ClpModel watergun::aimer::create_basic_movement_model ( const int n ) const
     /* Tableaux contains variables x[n] and t[n], where x[i] is the velocity at the i'th period,
      * and t[i] is at least the absolute difference between x[i] and the on-target angle at that period.
      * The acceleration between periods, as well as the finishing angle are constrained.
-     * The model is optimal, when t[0...n] are minimised, where t[i+1] is more desireable to minimise than t[i].
+     * The model is optimal, when t[0...n) are minimised, where t[i+1] is more desireable to minimise than t[i].
      */
 
     /* Create the tableaux */
@@ -254,7 +254,7 @@ std::vector<watergun::aimer::gun_position> watergun::aimer::specialize_movement_
     /* The return array of gun positions at the end of each period */
     std::vector<gun_position> gun_positions ( n );
 
-    /* Modify the bounds on the constraints which define the absolute variables */
+    /* Modify the lower bounds on all the constraints defining all t[0...n) */
     for ( int i = 0; i < n; ++i )
     {
         /* Project the user and get the aim */
