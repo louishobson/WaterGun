@@ -11,7 +11,7 @@ AR=ar
 ARFLAGS=-rc
 
 # object files
-OBJ=src/watergun/tracker.o src/watergun/aimer.o src/watergun/controller.o src/watergun/stepper.o
+OBJ=src/watergun/tracker.o src/watergun/aimer.o src/watergun/controller.o src/watergun/stepper.o src/watergun/solenoid.o
 
 
 
