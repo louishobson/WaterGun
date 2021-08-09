@@ -184,7 +184,7 @@ void watergun::controller::movement_planner_thread_function ( std::stop_token st
             pitch_stepper.set_position ( current_movement->ending_pitch, current_movement->duration );
 
             /* Possibly open/close the valve */
-            if ( current_movement->end_on_target ) solenoid_valve.power_on (); else solenoid_valve.power_off ();
+            if ( current_movement->ends_on_target ) solenoid_valve.power_on (); else solenoid_valve.power_off ();
 
             /* Unlock the mutex */
             lock.unlock ();
