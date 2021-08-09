@@ -116,11 +116,14 @@ protected:
     /* Pin numbers */
     const int step_pin, dir_pin, microstep_pin_0, microstep_pin_1, microstep_pin_2, sleep_pin;
 
-    /* The availible microstepping numbers (0 for full step, 1 for 1/2, etc.) */
-    std::list<int> availible_microstep_numbers { 0, 1, 2, 3, 4, 5 };
-
     /* The Gpio objects, not including the step pin */
     mraa::Gpio dir_gpio, microstep_gpio_0, microstep_gpio_1, microstep_gpio_2, sleep_gpio;
+
+    /* The states of those gpio objects */
+    int dir_state { 0 }, microstep_state_0 { 0 }, microstep_state_1 { 0 }, microstep_state_2 { 0 }, sleep_state { 0 };
+
+    /* The availible microstepping numbers (0 for full step, 1 for 1/2, etc.) */
+    std::list<int> availible_microstep_numbers { 0, 1, 2, 3, 4, 5 };
 
 
 
@@ -232,6 +235,9 @@ private:
 
     /* Step PWM pin */
     mraa::Pwm step_pwm;
+
+    /* The current PWM period */
+    double step_state { 0. }; 
 
 };
 

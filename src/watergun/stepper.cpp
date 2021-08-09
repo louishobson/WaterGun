@@ -97,15 +97,15 @@ int watergun::stepper_base::choose_microstep_number ( const double velocity ) co
 void watergun::stepper_base::disable_motor ()
 {
     /* Set the sleep pin to on */
-    if ( sleep_gpio.isValid () ) sleep_gpio.write ( 1 );
+    if ( sleep_gpio.isValid () && !sleep_state ) sleep_gpio.write ( sleep_state = 1 );
 
     /* Disable all microstepping pins */
-    if ( microstep_gpio_0.isValid () ) microstep_gpio_0.write ( 0 );
-    if ( microstep_gpio_1.isValid () ) microstep_gpio_1.write ( 0 );
-    if ( microstep_gpio_2.isValid () ) microstep_gpio_2.write ( 0 );
+    if ( microstep_gpio_0.isValid () && microstep_state_0 ) microstep_gpio_0.write ( microstep_state_0 = 0 );
+    if ( microstep_gpio_1.isValid () && microstep_state_1 ) microstep_gpio_1.write ( microstep_state_1 = 0 );
+    if ( microstep_gpio_2.isValid () && microstep_state_2 ) microstep_gpio_2.write ( microstep_state_2 = 0 );
 
     /* Set the direction pin to off */
-    dir_gpio.write ( 0 );
+    if ( dir_state ) dir_gpio.write ( dir_state = 0 );
 } 
 
 
@@ -120,15 +120,15 @@ void watergun::stepper_base::disable_motor ()
 void watergun::stepper_base::enable_motor ( const int microstep_number, const bool direction )
 {
     /* Set the sleep pin to off */
-    if ( sleep_gpio.isValid () ) sleep_gpio.write ( 0 );
+    if ( sleep_gpio.isValid () && sleep_state ) sleep_gpio.write ( sleep_state = 0 );
 
     /* Set the microstep pin values */
-    if ( microstep_gpio_0.isValid () ) microstep_gpio_0.write ( microstep_number & 1 );
-    if ( microstep_gpio_1.isValid () ) microstep_gpio_1.write ( microstep_number & 2 );
-    if ( microstep_gpio_2.isValid () ) microstep_gpio_2.write ( microstep_number & 4 );
+    if ( microstep_gpio_0.isValid () && microstep_state_0 != microstep_number & 1 ) microstep_gpio_0.write ( microstep_state_0 = microstep_number & 1 );
+    if ( microstep_gpio_1.isValid () && microstep_state_1 != microstep_number & 2 ) microstep_gpio_1.write ( microstep_state_1 = microstep_number & 2 );
+    if ( microstep_gpio_2.isValid () && microstep_state_2 != microstep_number & 4 ) microstep_gpio_2.write ( microstep_state_2 = microstep_number & 4 );
 
     /* Set the direction pin */
-    dir_gpio.write ( !direction );
+    if ( dir_state != !direction ) dir_gpio.write ( dir_state = !direction );
 }
 
 
@@ -258,12 +258,16 @@ void watergun::pwm_stepper::set_velocity ( double velocity )
     /* Get the PWM period */
     double pwm_period = microstep_size / std::abs ( velocity ); 
 
-    /* Enable the motor */
-    enable_motor ( microstep_number, velocity > 0. );
+    /* Only change motor settings if period has changed */
+    if ( pwm_period != step_state )
+    {
+        /* Enable the motor */
+        enable_motor ( microstep_number, velocity > 0. );
 
-    /* Set the PWM pin */
-    step_pwm.period ( pwm_period );
-    step_pwm.enable ( true );
+        /* Set the PWM pin */
+        step_pwm.period ( pwm_period );
+        step_pwm.enable ( true );
+    }
 }
 
 
