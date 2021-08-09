@@ -45,6 +45,7 @@ namespace watergun
  */
 class watergun::solenoid
 {
+public:
 
     /** @name constructor
      * 
