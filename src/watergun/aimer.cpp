@@ -164,7 +164,7 @@ std::list<watergun::aimer::single_movement> watergun::aimer::calculate_future_mo
         aim_period, user.timestamp + aim_period * i, 
         movement_model.getColSolution () [ i ], 
         gun_positions.at ( i ).pitch, 
-        movement_model.getColSolution () [ i + n ] < M_PI / 180. && !gun_positions.at ( i ).out_of_range 
+        movement_model.getColSolution () [ i + n ] < on_target_threshold && !gun_positions.at ( i ).out_of_range 
     } );
 
     /* Return the future movements */

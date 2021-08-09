@@ -78,7 +78,7 @@ public:
         double ending_pitch;
 
         /* Whether the gun ends up on target by the end of the movement */
-        bool end_on_target = false;
+        bool ends_on_target = false;
     };
 
 
@@ -156,6 +156,9 @@ private:
 
     /* The multiple to increase the movement model size by */
     const int movement_model_size_multiple { 20 };
+
+    /* The number of radians away from hitting the user, the gun has to be to be considered 'on target' */
+    const double on_target_threshold { 5. * ( M_PI / 180. ) };
 
 
 
