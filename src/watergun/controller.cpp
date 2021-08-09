@@ -26,6 +26,7 @@
  * @brief Sets up controller, then begins controlling the motors.
  * @param _yaw_stepper: The yaw stepper motor to use.
  * @param _pitch_stepper: The pitch stepper motor to use.
+ * @param _solenoid_valve: The solenoid valve to use.
  * @param _search_yaw_velocity: The yaw angular velocity in radians per second when searching for a user.
  * @param _water_rate: The velocity of the water leaving the watergun (depends on psi etc).
  * @param _air_resistance: Horizontal deceleration of the water, to model small amounts of air resistance.
@@ -35,10 +36,11 @@
  * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
  * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
  */
-watergun::controller::controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pitch_stepper, const double _search_yaw_velocity, const double _water_rate, const double _air_resistance, const double _max_yaw_velocity, const double _max_yaw_acceleration, const clock::duration _aim_period, const vector3d _camera_offset )
+watergun::controller::controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pitch_stepper, solenoid& _solenoid_valve, const double _search_yaw_velocity, const double _water_rate, const double _air_resistance, const double _max_yaw_velocity, const double _max_yaw_acceleration, const clock::duration _aim_period, const vector3d _camera_offset )
     : aimer ( _water_rate, _air_resistance, _max_yaw_velocity, _max_yaw_acceleration, _aim_period, _camera_offset )
     , yaw_stepper { _yaw_stepper }
     , pitch_stepper { _pitch_stepper }
+    , solenoid_valve { _solenoid_valve }
     , search_yaw_velocity { _search_yaw_velocity }
     , num_future_movements { static_cast<int> ( std::chrono::seconds { 1 } / _aim_period ) }
 {
@@ -180,6 +182,9 @@ void watergun::controller::movement_planner_thread_function ( std::stop_token st
             /* Set stepper velocities and positions */
             yaw_stepper.set_velocity ( current_movement->yaw_rate );
             pitch_stepper.set_position ( current_movement->ending_pitch, current_movement->duration );
+
+            /* Possibly open/close the valve */
+            if ( current_movement->end_on_target ) solenoid_valve.power_on (); else solenoid_valve.power_off ();
 
             /* Unlock the mutex */
             lock.unlock ();

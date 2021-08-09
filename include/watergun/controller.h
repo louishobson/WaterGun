@@ -21,6 +21,7 @@
 /* INCLUDES */
 #include <list>
 #include <watergun/aimer.h>
+#include <watergun/solenoid.h>
 #include <watergun/stepper.h>
 
 
@@ -54,6 +55,7 @@ public:
      * @brief Sets up controller, then begins controlling the motors.
      * @param _yaw_stepper: The yaw stepper motor to use.
      * @param _pitch_stepper: The pitch stepper motor to use.
+     * @param _solenoid_valve: The solenoid valve to use.
      * @param _search_yaw_velocity: The yaw angular velocity in radians per second when searching for a user.
      * @param _water_rate: The velocity of the water leaving the watergun (depends on psi etc).
      * @param _air_resistance: Horizontal deceleration of the water, to model small amounts of air resistance.
@@ -63,7 +65,7 @@ public:
      * @param _camera_offset: The position of the camera relative to a custom origin. Defaults to the camera being the origin.
      * @throw watergun_exception, if configuration cannot be completed (e.g. config file or denice not found).
      */
-    controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pitch_stepper, double _search_yaw_velocity, double _water_rate, double _air_resistance, double _max_yaw_velocity, double _max_yaw_acceleration, clock::duration _aim_period = clock::duration { 0 }, vector3d _camera_offset = vector3d {} );
+    controller ( pwm_stepper& _yaw_stepper, gpio_stepper& _pitch_stepper, solenoid& _solenoid_valve, double _search_yaw_velocity, double _water_rate, double _air_resistance, double _max_yaw_velocity, double _max_yaw_acceleration, clock::duration _aim_period = clock::duration { 0 }, vector3d _camera_offset = vector3d {} );
 
     /** @name destructor
      * 
@@ -105,6 +107,9 @@ private:
     /* The stepper motors */
     pwm_stepper&  yaw_stepper;
     gpio_stepper& pitch_stepper;
+
+    /* Solenoid valve */
+    solenoid& solenoid_valve;
 
 
 
